@@ -24,13 +24,16 @@ const walletExtra = ref<{
 const bookingMonth = ref(currentMonth())
 const bookingSubUnitId = ref<string | null>(null)
 
-const { data: boot } = await usePortalBootstrap()
+const { data: boot } = usePortalBootstrap()
 
 // Pick student before the first module fetch to avoid a wasted round-trip.
-const bootStudents = boot.value?.students ?? []
-if (bootStudents.length && (!studentId.value || !bootStudents.some(student => student.id === studentId.value))) {
-  studentId.value = bootStudents[0].id
-}
+watch(boot, (value) => {
+  const students = value?.students ?? []
+  if (!students.length) return
+  if (!studentId.value || !students.some(student => student.id === studentId.value)) {
+    studentId.value = students[0].id
+  }
+}, { immediate: true })
 
 const moduleQuery = computed(() => {
   const query: Record<string, string | undefined> = {
@@ -45,18 +48,39 @@ const moduleQuery = computed(() => {
   return query
 })
 
-const { data, pending, error, refresh } = await useAsyncData(
-  () => `portal-module-${props.module}-${studentId.value || 'all'}-${props.module === 'marcacoes' ? `${bookingMonth.value}-${bookingSubUnitId.value || 'auto'}` : 'x'}`,
+const asyncKey = computed(() => moduleCacheKey(props.module, studentId.value, {
+  month: bookingMonth.value,
+  subUnitId: bookingSubUnitId.value
+}))
+
+// lazy + cache: tab switches paint immediately from payload / warm data.
+const { data, pending, error, refresh } = useAsyncData(
+  asyncKey,
   async () => {
-    const key = `portal-module-${props.module}-${studentId.value || 'all'}-${props.module === 'marcacoes' ? `${bookingMonth.value}-${bookingSubUnitId.value || 'auto'}` : 'x'}`
+    const key = asyncKey.value
     const warm = takeWarmPortalModule(key)
     if (warm) return warm
     return $fetch<ModulePayload>('/api/portal/module', {
       query: moduleQuery.value
     }).catch(() => ({ ok: false, message: '', payload: null, canTopUp: false, canSaveDays: false, needRelogin: true }))
   },
-  { server: false, watch: [studentId, bookingMonth, bookingSubUnitId] }
+  {
+    server: false,
+    lazy: true,
+    watch: [asyncKey],
+    getCachedData(key, nuxtApp) {
+      const cached = nuxtApp.payload.data[key] as ModulePayload | undefined
+      if (cached) return cached
+      return peekWarmPortalModule(key) || undefined
+    }
+  }
 )
+
+watch(() => props.module, () => {
+  walletExtra.value = { loaded: {} }
+  noteKey.value = ''
+  noteText.value = ''
+})
 
 const portalRefresh = usePortalRefresh()
 portalRefresh.register(() => refresh())
@@ -74,14 +98,6 @@ watch(data, (value) => {
     bookingSubUnitId.value = payload.selectedSubUnitId
   }
 })
-
-watch(boot, (value) => {
-  const students = value?.students ?? []
-  if (!students.length) return
-  if (!studentId.value || !students.some(student => student.id === studentId.value)) {
-    studentId.value = students[0].id
-  }
-}, { immediate: true })
 
 const currentStudent = computed(() => {
   const students = boot.value?.students ?? []

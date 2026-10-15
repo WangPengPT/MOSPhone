@@ -7,7 +7,7 @@ const more = ref(false)
 const { t } = useAppI18n()
 const { refresh: runPortalRefresh, pending: refreshPending } = usePortalRefresh()
 
-const { data, pending, refresh: refreshBootstrap } = await usePortalBootstrap()
+const { data, pending, refresh: refreshBootstrap } = usePortalBootstrap()
 
 watch(data, (value) => {
   const students = value?.students ?? []
@@ -15,6 +15,14 @@ watch(data, (value) => {
   if (!studentId.value || !students.some(student => student.id === studentId.value)) {
     studentId.value = students[0].id
   }
+}, { immediate: true })
+
+// Prefetch bottom-tab modules after bootstrap so switches feel instant.
+watch([data, studentId], ([boot]) => {
+  if (!import.meta.client || !boot?.ok) return
+  const run = () => prefetchPortalModules([...primaryNav], studentId.value)
+  if (typeof requestIdleCallback === 'function') requestIdleCallback(() => run(), { timeout: 1500 })
+  else setTimeout(run, 200)
 }, { immediate: true })
 
 const students = computed(() => data.value?.students ?? [])
@@ -64,6 +72,8 @@ const schoolLabel = computed(() => {
 async function logout() {
   await $fetch('/api/auth/logout', { method: 'POST' })
   studentId.value = null
+  useState('siga-app-session').value = false
+  clearNuxtData()
   await navigateTo('/')
 }
 

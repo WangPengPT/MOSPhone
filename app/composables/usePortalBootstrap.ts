@@ -26,8 +26,24 @@ export function takeWarmPortalModule(key: string) {
   return payload
 }
 
+export function peekWarmPortalModule(key: string) {
+  return warmModules.get(key) || null
+}
+
 export function homeModuleKey(studentId?: string | null) {
-  return `portal-module-inicio-${studentId || 'all'}-x`
+  return moduleCacheKey('inicio', studentId)
+}
+
+function currentMonthKey() {
+  const now = new Date()
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+}
+
+export function moduleCacheKey(module: string, studentId?: string | null, opts?: { month?: string, subUnitId?: string | null }) {
+  if (module === 'marcacoes') {
+    return `portal-module-${module}-${studentId || 'all'}-${opts?.month || currentMonthKey()}-${opts?.subUnitId || 'auto'}`
+  }
+  return `portal-module-${module}-${studentId || 'all'}-x`
 }
 
 export function usePortalBootstrap() {
@@ -39,4 +55,26 @@ export function usePortalBootstrap() {
     }
     return $fetch<BootstrapPayload>('/api/portal/bootstrap').catch(() => empty)
   }, { server: false })
+}
+
+/** Warm primary tabs so bottom-nav switches feel instant. */
+export function prefetchPortalModules(modules: string[], studentId?: string | null) {
+  if (!import.meta.client) return
+  const nuxtApp = useNuxtApp()
+  const month = currentMonthKey()
+  for (const module of modules) {
+    const key = moduleCacheKey(module, studentId, { month })
+    if (nuxtApp.payload.data[key] || warmModules.has(key)) continue
+    void $fetch<ModulePayload>('/api/portal/module', {
+      query: {
+        module,
+        studentId: studentId || undefined,
+        part: module === 'cartao' ? 'summary' : undefined,
+        month: module === 'marcacoes' ? month : undefined
+      }
+    }).then((payload) => {
+      nuxtApp.payload.data[key] = payload
+      warmPortalModule(key, payload)
+    }).catch(() => {})
+  }
 }
