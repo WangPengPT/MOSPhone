@@ -10,3 +10,9 @@ Thumbs.db
 
 # Android shell / APK (local only — do not push to GitHub)
 mobile/
+
+# wrangler files
+.wrangler
+.dev.vars*
+!.dev.vars.example
+!.env.example

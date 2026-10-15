@@ -1,6 +1,6 @@
 export default defineNuxtConfig({
   compatibilityDate: '2026-10-15',
-  modules: ['@nuxt/ui'],
+  modules: ['@nuxt/ui', "nitro-cloudflare-dev"],
   css: ['~/assets/css/main.css'],
   devtools: { enabled: false },
   colorMode: {
@@ -18,10 +18,15 @@ export default defineNuxtConfig({
   nitro: {
     cloudflare: {
       deployConfig: true,
+
       wrangler: {
         keep_vars: true
-      }
-    }
+      },
+
+      nodeCompat: true
+    },
+
+    preset: "cloudflare_module"
   },
   runtimeConfig: {
     sigaApi: 'https://siga.edubox.pt/api',

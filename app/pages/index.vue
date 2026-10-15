@@ -366,6 +366,21 @@ function scorePassword(value: string) {
           :loading="busy"
           :disabled="busy"
         />
+
+        <div class="space-y-2 rounded-xl border border-[var(--color-line)] bg-[rgb(28_28_28_/_0.03)] px-3 py-3">
+          <UButton
+            type="button"
+            block
+            size="md"
+            color="neutral"
+            variant="outline"
+            :disabled="busy"
+            :label="needCaptcha ? t('login.switchOfficialCaptcha') : t('login.switchOfficial')"
+            @click="openOfficialSiga({ username: state.username, password: state.password })"
+          />
+          <p class="text-xs leading-relaxed ink-soft">{{ t('login.switchOfficialHint') }}</p>
+        </div>
+
         <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 text-sm">
           <NuxtLink
             to="/recuperar"
