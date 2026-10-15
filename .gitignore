@@ -7,3 +7,6 @@ dist
 *.log
 .DS_Store
 Thumbs.db
+
+# Android shell / APK (local only — do not push to GitHub)
+mobile/

@@ -6,18 +6,22 @@ const REMEMBER_COOKIE = 'siga_remember'
 const SESSION_MAX_AGE = 60 * 60 * 12
 const REMEMBER_MAX_AGE = 60 * 60 * 24 * 30
 
-function cookieBase() {
+function cookieBase(event?: H3Event) {
+  // Workers / reverse proxies are always HTTPS in production; Secure cookies
+  // keep Android WebView session storage reliable after login.
+  const forwarded = event ? String(getRequestHeader(event, 'x-forwarded-proto') || '') : ''
+  const secure = process.env.NODE_ENV === 'production' || forwarded.includes('https')
   return {
     httpOnly: true,
     sameSite: 'lax' as const,
-    secure: process.env.NODE_ENV === 'production',
+    secure,
     path: '/'
   }
 }
 
 export function setRemember(event: H3Event, remember: boolean) {
   if (remember) {
-    setCookie(event, REMEMBER_COOKIE, '1', { ...cookieBase(), maxAge: REMEMBER_MAX_AGE })
+    setCookie(event, REMEMBER_COOKIE, '1', { ...cookieBase(event), maxAge: REMEMBER_MAX_AGE })
     return
   }
   deleteCookie(event, REMEMBER_COOKIE, { path: '/' })
@@ -38,7 +42,7 @@ export function openSession(event: H3Event) {
     name: 'siga_session',
     maxAge,
     cookie: {
-      ...cookieBase(),
+      ...cookieBase(event),
       maxAge
     }
   })

@@ -188,12 +188,6 @@ async function onSubmit(event: FormSubmitEvent<z.output<typeof schema.value>>) {
         localStorage.removeItem(USER_KEY)
         clearLocalSecret()
       }
-      try {
-        sessionStorage.setItem('siga_auth_ok', '1')
-      }
-      catch {
-        // ignore
-      }
       // Prefetch in background; never block navigation.
       void warmAppEntry()
       try {
