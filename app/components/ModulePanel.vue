@@ -141,8 +141,8 @@ function studentMeta(student: Student | null | undefined) {
     </section>
 
     <section v-if="panel.focusStudent" class="surface rounded-2xl px-4 py-4 sm:px-5 sm:py-5">
-      <div class="min-w-0 space-y-3">
-        <div class="min-w-0">
+      <div class="flex min-w-0 items-start justify-between gap-3">
+        <div class="min-w-0 flex-1">
           <div class="flex min-w-0 items-center gap-2">
             <p class="truncate text-xs tracking-[0.08em] text-muted uppercase">{{ t('home.focusStudent') }}</p>
             <span
@@ -150,23 +150,27 @@ function studentMeta(student: Student | null | undefined) {
               class="shrink-0 rounded-full bg-ink px-1.5 py-0.5 text-[0.65rem] font-semibold text-paper"
             >{{ panel.focusStudent.unread }}</span>
           </div>
-          <p class="mt-2 break-words font-display text-2xl tracking-[-0.02em]">{{ panel.focusStudent.name }}</p>
-          <p v-if="studentMeta(panel.focusStudent)" class="mt-1 break-words text-sm ink-soft">
+          <p class="mt-2 truncate font-display text-2xl tracking-[-0.02em]" :title="panel.focusStudent.name || undefined">
+            {{ panel.focusStudent.name }}
+          </p>
+          <p v-if="studentMeta(panel.focusStudent)" class="mt-1 truncate text-sm ink-soft">
             {{ studentMeta(panel.focusStudent) }}
           </p>
         </div>
-        <div class="flex flex-wrap items-center gap-2">
+        <div class="flex shrink-0 flex-col items-stretch gap-2 sm:items-end">
           <UButton
             to="/app/cartao"
             color="neutral"
             variant="ghost"
-            size="md"
+            size="sm"
+            class="justify-center"
             :label="t('home.openCard')"
           />
           <UButton
             v-if="canTopUp"
             color="primary"
-            size="md"
+            size="sm"
+            class="justify-center"
             :label="t('topup.action')"
             @click="emit('topup')"
           />

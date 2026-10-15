@@ -296,24 +296,25 @@ function confirm() {
 
     <p v-else class="text-sm ink-soft">{{ t('bookings.emptyMonth') }}</p>
 
-    <!-- Teleport out of .rise (transform) so fixed sticks to the real viewport. -->
-    <Teleport to="body">
-      <div class="pointer-events-none fixed inset-x-0 bottom-[calc(var(--portal-tabbar,4.75rem)+var(--safe-bottom))] z-40 px-3 lg:bottom-4 lg:px-4">
-        <div class="pointer-events-auto mx-auto flex max-w-lg items-center gap-3 rounded-2xl border border-[var(--color-line)] bg-[rgb(247_244_237_/_0.96)] px-3 py-2.5 shadow-[0_8px_28px_rgb(28_28_28_/_0.12)] backdrop-blur-md">
-          <p class="min-w-0 flex-1 text-xs ink-soft">
-            <span v-if="dirty">{{ t('bookings.pending', { count: pendingCount }) }}</span>
-            <span v-else>{{ t('bookings.hintShort') }}</span>
-          </p>
-          <UButton
-            size="lg"
-            class="shrink-0"
-            :label="t('bookings.confirm')"
-            :loading="saving"
-            :disabled="!canEdit || !dirty"
-            @click="confirm"
-          />
-        </div>
+    <!-- Stay in-page (not body teleport) so it never overlays the More drawer. -->
+    <div
+      v-if="canEdit"
+      class="sticky bottom-0 z-10 mt-4 border-t border-[var(--color-line)] bg-[rgb(247_244_237_/_0.96)] px-1 py-3 backdrop-blur-md"
+    >
+      <div class="flex items-center gap-3">
+        <p class="min-w-0 flex-1 text-xs ink-soft">
+          <span v-if="dirty">{{ t('bookings.pending', { count: pendingCount }) }}</span>
+          <span v-else>{{ t('bookings.hintShort') }}</span>
+        </p>
+        <UButton
+          size="md"
+          class="shrink-0"
+          :label="t('bookings.confirm')"
+          :loading="saving"
+          :disabled="!dirty"
+          @click="confirm"
+        />
       </div>
-    </Teleport>
+    </div>
   </section>
 </template>
