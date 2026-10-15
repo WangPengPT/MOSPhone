@@ -140,7 +140,7 @@ export const pt = {
     logout: 'Terminar sessão',
     opening: 'A abrir o portal da escola…',
     more: 'Mais',
-    moreTitle: 'Mais módulos'
+    moreTitle: 'Todos os módulos'
   },
   module: {
     refresh: 'Atualizar',

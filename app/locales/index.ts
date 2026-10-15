@@ -8,9 +8,9 @@ export type Locale = (typeof locales)[number]
 export const catalogs: Record<Locale, Messages> = { en, zh, pt }
 
 export const localeChoices = [
-  { code: 'en' as const, short: 'EN' },
-  { code: 'zh' as const, short: '中文' },
-  { code: 'pt' as const, short: 'PT' }
+  { code: 'en' as const, short: 'EN', name: 'English' },
+  { code: 'zh' as const, short: '中', name: '中文' },
+  { code: 'pt' as const, short: 'PT', name: 'Português' }
 ]
 
 export function normalizeLocale(value: unknown): Locale {

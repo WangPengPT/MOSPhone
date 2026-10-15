@@ -1160,7 +1160,7 @@ async function topUpWallet(state: PortalState, body: unknown) {
       : record
     return typeof nested.HasWallet === 'boolean' ? nested.HasWallet : typeof record.HasWallet === 'boolean' ? record.HasWallet : null
   })()
-  if (hasWallet !== true) {
+  if (hasWallet === false) {
     return { ok: false, message: serverT('api.needWallet'), payload: null }
   }
 

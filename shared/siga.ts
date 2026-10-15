@@ -179,7 +179,8 @@ export const portalModules: PortalModule[] = [
   }
 ]
 
-export const primaryNav = ['inicio', 'marcacoes', 'cartao', 'ementas'] as const
+/** Bottom tab bar on phone — only these stay out of “More”. */
+export const primaryNav = ['inicio', 'marcacoes', 'cartao'] as const
 
 export const videos = [
   { key: 'bookings', url: 'https://www.youtube.com/embed/UNm-Aos9VxY' },

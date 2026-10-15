@@ -138,7 +138,7 @@ export const en = {
     logout: 'Sign out',
     opening: 'Opening the school portal…',
     more: 'More',
-    moreTitle: 'More modules'
+    moreTitle: 'All modules'
   },
   module: {
     refresh: 'Refresh',

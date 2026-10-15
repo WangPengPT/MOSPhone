@@ -140,7 +140,7 @@ export const zh = {
     logout: '退出',
     opening: '正在打开学校门户…',
     more: '更多',
-    moreTitle: '更多功能'
+    moreTitle: '全部功能'
   },
   module: {
     refresh: '刷新',
@@ -292,8 +292,8 @@ export const zh = {
       description: '本周和本月的餐食。'
     },
     marcacoes: {
-      label: '预约',
-      nav: '预约',
+      label: '定餐',
+      nav: '定餐',
       description: '餐食、课后延长和出勤。'
     },
     notificacoes: {

@@ -291,7 +291,9 @@ export function walletAllowsTopUp(input: {
   accountBlocked?: boolean | null
 }) {
   if (input.accountBlocked) return false
-  if (input.hasWallet !== true) return false
+  // Only hide top-up when SIGA explicitly says there is no wallet.
+  // Home balance payloads often omit HasWallet even when a card exists.
+  if (input.hasWallet === false) return false
   if (input.accountState == null) return true
   return Number(input.accountState) === 1
 }

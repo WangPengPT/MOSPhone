@@ -140,22 +140,22 @@ function studentMeta(student: Student | null | undefined) {
       <p v-if="panel.schoolYear" class="text-sm ink-soft">{{ panel.schoolYear }}</p>
     </section>
 
-    <section v-if="panel.focusStudent" class="surface rounded-2xl px-5 py-5">
-      <div class="flex items-start justify-between gap-3">
+    <section v-if="panel.focusStudent" class="surface rounded-2xl px-4 py-4 sm:px-5 sm:py-5">
+      <div class="min-w-0 space-y-3">
         <div class="min-w-0">
-          <div class="flex items-center gap-2">
-            <p class="text-xs tracking-[0.08em] text-muted uppercase">{{ t('home.focusStudent') }}</p>
+          <div class="flex min-w-0 items-center gap-2">
+            <p class="truncate text-xs tracking-[0.08em] text-muted uppercase">{{ t('home.focusStudent') }}</p>
             <span
               v-if="panel.focusStudent.unread"
-              class="rounded-full bg-ink px-1.5 py-0.5 text-[0.65rem] font-semibold text-paper"
+              class="shrink-0 rounded-full bg-ink px-1.5 py-0.5 text-[0.65rem] font-semibold text-paper"
             >{{ panel.focusStudent.unread }}</span>
           </div>
-          <p class="mt-2 font-display text-2xl tracking-[-0.02em]">{{ panel.focusStudent.name }}</p>
-          <p v-if="studentMeta(panel.focusStudent)" class="mt-1 text-sm ink-soft">
+          <p class="mt-2 break-words font-display text-2xl tracking-[-0.02em]">{{ panel.focusStudent.name }}</p>
+          <p v-if="studentMeta(panel.focusStudent)" class="mt-1 break-words text-sm ink-soft">
             {{ studentMeta(panel.focusStudent) }}
           </p>
         </div>
-        <div class="flex shrink-0 flex-wrap items-center justify-end gap-2">
+        <div class="flex flex-wrap items-center gap-2">
           <UButton
             to="/app/cartao"
             color="neutral"
@@ -172,7 +172,7 @@ function studentMeta(student: Student | null | undefined) {
           />
         </div>
       </div>
-      <div class="mt-4">
+      <div class="mt-4 min-w-0">
         <p class="text-xs ink-soft">{{ t('panel.balance') }}</p>
         <p class="mt-1 font-display text-3xl leading-none tracking-[-0.03em]">
           {{ hasMeaningfulMoney(panel.balance) || panel.balance === 0 ? formatMoney(panel.balance) : '—' }}
@@ -188,17 +188,17 @@ function studentMeta(student: Student | null | undefined) {
       <p v-if="panel.studentYear" class="text-sm ink-soft">{{ panel.studentYear }}</p>
     </section>
 
-    <section class="surface rounded-2xl px-5 py-6">
-      <div class="flex items-start justify-between gap-4">
+    <section class="surface rounded-2xl px-4 py-5 sm:px-5 sm:py-6">
+      <div class="flex min-w-0 flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
         <div class="min-w-0">
           <p class="text-sm ink-soft">{{ t('panel.balance') }}</p>
-          <p class="mt-2 font-display text-5xl leading-none tracking-[-0.03em]">
+          <p class="mt-2 break-all font-display text-4xl leading-none tracking-[-0.03em] sm:text-5xl">
             {{ panel.available != null || panel.balance != null ? formatMoney(panel.available ?? panel.balance) : '—' }}
           </p>
         </div>
-        <div class="flex shrink-0 flex-col items-end gap-2">
+        <div class="flex flex-wrap gap-2 sm:shrink-0 sm:flex-col sm:items-end">
           <UButton
-            v-if="canTopUp && panel.hasWallet !== false"
+            v-if="canTopUp"
             color="primary"
             size="md"
             :label="t('topup.action')"

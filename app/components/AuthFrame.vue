@@ -9,8 +9,11 @@ const { t } = useAppI18n()
 </script>
 
 <template>
-  <div class="atmosphere min-h-dvh overflow-x-hidden text-ink">
-    <div class="mx-auto flex min-h-dvh w-full max-w-6xl flex-col px-5 py-6 sm:px-8 lg:px-12">
+  <div class="atmosphere min-h-dvh max-w-[100vw] overflow-x-hidden text-ink">
+    <div
+      class="mx-auto flex min-h-dvh w-full max-w-6xl flex-col px-4 pb-5 sm:px-8 sm:pb-6 lg:px-12"
+      style="padding-top: calc(1rem + var(--safe-top))"
+    >
       <header class="rise flex items-center justify-between gap-3">
         <NuxtLink to="/" class="font-display text-[2.5rem] leading-none tracking-[-0.04em]" aria-label="Siga">
           siga

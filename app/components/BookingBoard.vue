@@ -187,7 +187,7 @@ function confirm() {
 </script>
 
 <template>
-  <section class="space-y-3 pb-[calc(7.5rem+env(safe-area-inset-bottom))] lg:pb-8">
+  <section class="space-y-3 pb-8 lg:pb-8">
     <div class="flex items-center justify-between gap-2">
       <UButton color="neutral" variant="ghost" size="xs" icon="i-lucide-chevron-left" :aria-label="t('bookings.prevMonth')" @click="shiftMonth(-1)" />
       <p class="min-w-0 truncate font-display text-lg capitalize tracking-[-0.02em]">{{ monthLabel(month) }}</p>
@@ -298,7 +298,7 @@ function confirm() {
 
     <!-- Teleport out of .rise (transform) so fixed sticks to the real viewport. -->
     <Teleport to="body">
-      <div class="pointer-events-none fixed inset-x-0 bottom-[calc(var(--portal-tabbar,4.75rem)+env(safe-area-inset-bottom,0px))] z-40 px-3 lg:bottom-4 lg:px-4">
+      <div class="pointer-events-none fixed inset-x-0 bottom-[calc(var(--portal-tabbar,4.75rem)+var(--safe-bottom))] z-40 px-3 lg:bottom-4 lg:px-4">
         <div class="pointer-events-auto mx-auto flex max-w-lg items-center gap-3 rounded-2xl border border-[var(--color-line)] bg-[rgb(247_244_237_/_0.96)] px-3 py-2.5 shadow-[0_8px_28px_rgb(28_28_28_/_0.12)] backdrop-blur-md">
           <p class="min-w-0 flex-1 text-xs ink-soft">
             <span v-if="dirty">{{ t('bookings.pending', { count: pendingCount }) }}</span>
