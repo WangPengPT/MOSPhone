@@ -84,12 +84,12 @@ const dietOptions = computed(() => {
   const normal = plates.find(plate => plate.kind === 'normal')
     || plates.find(plate => plate.kind !== 'vegetarian')
   const vegetarian = plates.find(plate => plate.kind === 'vegetarian')
-  // SIGA often treats IdPlate 0 as the default/normal plate when only specials are listed.
-  const hasPlateCatalog = plates.length > 0
+  const firstReal = plates.find(plate => Number(plate.id) > 0)
+  // Official confirm requires a SelectedPlate; prefer a real IdPlate when the catalog has one.
   return [
     {
       kind: 'normal' as const,
-      id: normal?.id ?? (hasPlateCatalog ? 0 : null),
+      id: normal?.id ?? firstReal?.id ?? (plates.length ? 0 : null),
       label: t('bookings.dietNormal')
     },
     {
@@ -322,7 +322,10 @@ const calendarCells = computed(() => {
 function cloneDays(days: BookingDay[]) {
   return days.map(day => ({
     ...day,
-    picks: day.picks.map(pick => ({ ...pick }))
+    picks: day.picks.map(pick => ({
+      ...pick,
+      raw: pick.raw ? { ...pick.raw } : pick.raw
+    }))
   }))
 }
 
@@ -424,7 +427,10 @@ function cellClass(day: BookingDay | undefined) {
 }
 
 function confirm() {
-  emit('save', { mode: props.mode || 'days', picks: picksForSave() })
+  if (showDiet.value) applyDietToSelectedDays()
+  const picks = picksForSave()
+  if (!picks.length) return
+  emit('save', { mode: props.mode || 'days', picks })
 }
 </script>
 

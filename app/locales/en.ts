@@ -190,7 +190,8 @@ export const en = {
     dietVegetarian: 'Vegetarian',
     dietShortNormal: 'Norm.',
     dietShortVegetarian: 'Veg.',
-    limitReached: 'The school meal booking limit for this period was reached.'
+    limitReached: 'The school meal booking limit for this period was reached.',
+    needPlate: 'Choose a meal plate (normal/vegetarian) before confirming the booking.'
   },
   meals: {
     breakfast: 'Breakfast',

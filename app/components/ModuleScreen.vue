@@ -232,8 +232,8 @@ async function saveBookings(payload: {
     }
     else {
       toast.add({
-        title: t('module.bookingUnconfirmed'),
-        description: note.value || result.message || t('module.bookingUnconfirmed'),
+        title: result.message || t('module.bookingUnconfirmed'),
+        description: note.value && note.value !== result.message ? note.value : t('module.hint'),
         color: 'error'
       })
     }

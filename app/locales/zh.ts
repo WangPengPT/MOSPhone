@@ -192,7 +192,8 @@ export const zh = {
     dietVegetarian: '全素',
     dietShortNormal: '正常',
     dietShortVegetarian: '全素',
-    limitReached: '这个时段的学校订餐名额已满。'
+    limitReached: '这个时段的学校订餐名额已满。',
+    needPlate: '请先选择餐盘类型（正常/素食），再确认预约。'
   },
   meals: {
     breakfast: '早餐',

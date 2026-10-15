@@ -192,7 +192,8 @@ export const pt = {
     dietVegetarian: 'Vegetariano',
     dietShortNormal: 'Norm.',
     dietShortVegetarian: 'Veg.',
-    limitReached: 'Foi atingido o limite de marcações da escola neste período.'
+    limitReached: 'Foi atingido o limite de marcações da escola neste período.',
+    needPlate: 'Escolha o tipo de prato (normal/vegetariano) antes de confirmar a marcação.'
   },
   meals: {
     breakfast: 'Pequeno-almoço',

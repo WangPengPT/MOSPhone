@@ -935,17 +935,29 @@ async function saveBookings(state: PortalState, body: unknown) {
         : []
 
     const idSchool = Number(shell.IdSchool || state.user.IdSchool || 0)
+    if (!(idSchool > 0)) {
+      return { ok: false, message: serverT('api.incomplete'), payload: null }
+    }
+
+    const invoiceLocked = Boolean(shell.IsRequisitionLockedByInvoice)
+    const defaultPlate = plateOptions.find(plate => plate.Disabled !== true && Number(plate.IdPlate ?? plate.id) > 0)
+      || plateOptions.find(plate => Number(plate.IdPlate ?? plate.id) > 0)
+      || null
+
     const userPickDays = picks.map((pick) => {
       const date = String(pick.date || '')
-      const portalDate = /^\d{4}-\d{2}-\d{2}$/.test(date) ? formatPortalDay(date) : date
+      // Official formats with dayjs `DD-MM-YYYY`.
+      const portalDate = /^\d{4}-\d{2}-\d{2}$/.test(date)
+        ? formatPortalDay(date)
+        : (/^\d{2}-\d{2}-\d{4}/.test(date) ? date.slice(0, 10) : date)
       const raw = pick.raw || {}
       const initial = Number(pick.initialRequisition ?? raw.InitialRequisition ?? raw.Requisition ?? 0)
       const wasBooked = initial === 4 || initial === 6
-      // Match official calendar toggle: free→4/6, booked→5 cancel, newly booked→0 undo.
+      // Official calendar states: free→4/6, booked→5 cancel, newly booked→0 undo.
       let requisition = 0
       let withFine = Boolean(raw.RequisitionWithFine)
       if (pick.selected) {
-        withFine = withFine || Number(raw.FineValue) > 0
+        withFine = withFine || fineWindowStarted(raw.FineStartDate, raw.FineValue)
         requisition = withFine ? 6 : 4
       }
       else if (wasBooked) {
@@ -953,44 +965,35 @@ async function saveBookings(state: PortalState, body: unknown) {
       }
 
       let idPlate = Number(raw.IdPlate ?? raw.InitialIdPlate ?? 0)
-      // Official UI always resolves a plate when booking (first non-disabled UserPlate).
-      if (pick.selected && !(idPlate > 0) && plateOptions.length) {
-        const open = plateOptions.find(plate => plate.Disabled !== true && Number(plate.IdPlate ?? plate.id) > 0)
-          || plateOptions.find(plate => Number(plate.IdPlate ?? plate.id) > 0)
-        idPlate = Number(open?.IdPlate ?? open?.id ?? 0) || 0
+      // Official always stamps SelectedPlate.IdPlate when confirming a meal day.
+      if (pick.selected || requisition === 4 || requisition === 6) {
+        if (!(idPlate > 0) && defaultPlate) {
+          idPlate = Number(defaultPlate.IdPlate ?? defaultPlate.id ?? 0) || 0
+        }
       }
-      const plateName = raw.Plate != null
-        ? String(raw.Plate)
-        : String((plateOptions.find(plate => Number(plate.IdPlate ?? plate.id) === idPlate)?.Plate
-          || plateOptions.find(plate => Number(plate.IdPlate ?? plate.id) === idPlate)?.name
-          || '') || '')
+
       const familyValue = raw.InitialFamilyValue ?? raw.FamilyValue
-      // Calendar_UserPickDay schema is additionalProperties:false — only known fields.
+      // Match official SetUserPickDays day shape (no PlateValue / extra period fields).
       return {
         IdSubUnit: Number(raw.IdSubUnit ?? idSubUnit) || idSubUnit,
         IdSchoolAttendance: Number(raw.IdSchoolAttendance ?? 0) || 0,
         SchoolAttendance: raw.SchoolAttendance != null ? String(raw.SchoolAttendance) : '',
-        IdSchoolRequisition: Number(raw.IdSchoolRequisition ?? idSchool) || idSchool,
+        IdSchoolRequisition: Number(raw.IdSchoolRequisition || idSchool) || idSchool,
         SchoolRequisition: raw.SchoolRequisition != null ? String(raw.SchoolRequisition) : '',
         IdUserSchool: Number(raw.IdUserSchool ?? 0) || 0,
         Date: portalDate,
         IdRequisition: Number(raw.InitialIdRequisition ?? raw.IdRequisition ?? 0) || 0,
         Requisition: requisition,
-        IsRequisitionLocked: Boolean(raw.IsRequisitionLocked || raw.IsRequisitionLockedByInvoice),
+        IsRequisitionLocked: invoiceLocked,
         IdAttendance: Number(raw.InitialIdAttendance ?? raw.IdAttendance ?? 0) || 0,
         Attendance: Number(raw.Attendance ?? raw.InitialAttendance ?? 0) || 0,
-        IsAttendanceLocked: Boolean(raw.IsAttendanceLocked || raw.IsAttendanceLockedByInvoice),
-        IdPlate: idPlate > 0 ? idPlate : null,
-        Plate: plateName || null,
+        IsAttendanceLocked: invoiceLocked,
+        IdPlate: Number.isFinite(idPlate) ? idPlate : 0,
         IdUserEchelon: Number(raw.InitialIdUserEchelon ?? raw.IdUserEchelon ?? 0) || 0,
         Echelon: raw.InitialEchelon != null || raw.Echelon != null
           ? String(raw.InitialEchelon ?? raw.Echelon ?? '')
           : '',
         FamilyValue: familyValue == null || familyValue === '' ? null : String(familyValue),
-        IdPeriod: Number(raw.IdPeriod ?? pick.idPeriod ?? 0) || 0,
-        IsPeriodSelected: Boolean(raw.IsPeriodSelected ?? pick.selected),
-        IsPeriodLocked: Boolean(raw.IsPeriodLocked),
-        Order: Number(raw.Order ?? 0) || 0,
         FineValue: Number(raw.FineValue ?? 0) || 0,
         LimitPickTime: raw.LimitPickTime != null ? String(raw.LimitPickTime) : '',
         FineStartDate: raw.FineStartDate != null ? String(raw.FineStartDate) : '',
@@ -1000,15 +1003,20 @@ async function saveBookings(state: PortalState, body: unknown) {
         IsAttendanceLockedByInvoice: Boolean(raw.IsAttendanceLockedByInvoice),
         SetRequisition: true,
         SetAttendance: false,
-        IdUser: Number(raw.IdUser ?? idUser) || idUser,
-        IdRequisitionJustification: Number(raw.IdRequisitionJustification ?? 0) || 0,
-        IsRequisitionJustificationLocked: Boolean(raw.IsRequisitionJustificationLocked),
-        IdRequisitionJustificationApprovedState: Number(raw.IdRequisitionJustificationApprovedState ?? 0) || 0
+        IdUser: Number(raw.IdUser ?? idUser) || idUser
       }
     }).filter(item => item.Date)
 
     if (!userPickDays.length) {
       return { ok: false, message: serverT('api.incomplete'), payload: null }
+    }
+
+    const hasRealPlates = plateOptions.some(plate => Number(plate.IdPlate ?? plate.id) > 0)
+    const bookingWithoutPlate = hasRealPlates && userPickDays.some(day =>
+      (day.Requisition === 4 || day.Requisition === 6) && !(Number(day.IdPlate) > 0)
+    )
+    if (bookingWithoutPlate) {
+      return { ok: false, message: serverT('bookings.needPlate'), payload: null }
     }
 
     // Calendar_UserPick schema is additionalProperties:false — never spread the GET shell.
@@ -1057,29 +1065,34 @@ async function saveBookings(state: PortalState, body: unknown) {
     )
 
     if (!envelope || typeof envelope !== 'object' || !('ResponseCode' in envelope)) {
-      const detail = envelope && typeof envelope === 'object'
-        ? String((envelope as { title?: string, message?: string, text?: string }).title
-          || (envelope as { message?: string }).message
-          || (envelope as { text?: string }).text
-          || '')
-        : ''
       return {
         ok: false,
-        message: cleanMessage(detail) || serverT('api.refused'),
+        message: calendarPostError(envelope) || serverT('api.refused'),
         payload: envelope
       }
     }
 
+    const code = Number((envelope as SchoolEnvelope).ResponseCode)
     const limited = Boolean(
       envelope.ResponseObject
       && typeof envelope.ResponseObject === 'object'
       && (envelope.ResponseObject as { hasReachTheSchoolScheLimit?: boolean }).hasReachTheSchoolScheLimit
     )
 
+    if (code === SchoolResult.AccessDenied) {
+      return {
+        ok: false,
+        needRelogin: true,
+        message: cleanMessage(envelope.ResponseMessage) || serverT('api.signIn'),
+        payload: envelope.ResponseObject
+      }
+    }
+
     return {
-      ok: envelope.ResponseCode === SchoolResult.Success && !limited,
+      ok: code === SchoolResult.Success && !limited,
       message: cleanMessage(envelope.ResponseMessage)
-        || (limited ? serverT('bookings.limitReached') : ''),
+        || (limited ? serverT('bookings.limitReached') : '')
+        || (code === SchoolResult.Success ? '' : serverT('module.bookingUnconfirmed')),
       payload: envelope.ResponseObject
     }
   }
@@ -1486,6 +1499,33 @@ function emptyModule(message?: string): ModuleResult {
     canSaveDays: false,
     needRelogin: true
   }
+}
+
+function calendarPostError(envelope: unknown) {
+  if (!envelope || typeof envelope !== 'object') return ''
+  const record = envelope as Record<string, unknown>
+  if (typeof record.title === 'string' && record.title.trim()) {
+    const errors = record.errors && typeof record.errors === 'object'
+      ? Object.values(record.errors as Record<string, unknown>)
+        .flatMap(value => Array.isArray(value) ? value : [value])
+        .filter((value): value is string => typeof value === 'string' && Boolean(value.trim()))
+      : []
+    return cleanMessage([record.title, ...errors].filter(Boolean).join(' — '))
+  }
+  if (typeof record.message === 'string' && record.message.trim()) return cleanMessage(record.message)
+  if (typeof record.text === 'string' && record.text.trim()) return cleanMessage(record.text)
+  return ''
+}
+
+function fineWindowStarted(fineStartDate: unknown, fineValue: unknown) {
+  if (Number(fineValue) > 0 && (fineStartDate == null || fineStartDate === '')) return true
+  const raw = String(fineStartDate || '').trim()
+  if (!raw) return false
+  const normalized = raw
+    .replace(/^(\d{2})-(\d{2})-(\d{4})(.*)$/, '$3-$2-$1$4')
+    .replace(' ', 'T')
+  const stamp = Date.parse(normalized)
+  return !Number.isNaN(stamp) && Date.now() > stamp
 }
 
 function firstMessage(...envelopes: Array<{ ResponseCode: number, ResponseMessage?: string | null }>) {
