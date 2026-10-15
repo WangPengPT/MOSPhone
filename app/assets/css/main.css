@@ -54,6 +54,11 @@ html {
   --surface: #fcfbf8;
   /* Bottom tab bar height (icons + labels); save bars sit above this on mobile. */
   --portal-tabbar: 4.75rem;
+  /* Notch / camera / home indicator — used by shell + auth. */
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
   --press: 0.985;
   --shadow-inset: rgb(255 255 255 / 0.2) 0 0.5px 0 0 inset, rgb(0 0 0 / 0.2) 0 0 0 0.5px inset, rgb(0 0 0 / 0.05) 0 1px 2px 0;
   --shadow-focus: rgb(0 0 0 / 0.1) 0 4px 12px;
@@ -66,6 +71,12 @@ body {
   font-weight: 400;
   background: var(--color-paper);
   -webkit-font-smoothing: antialiased;
+}
+
+/* Native WebView sometimes reports 0 inset; keep a floor under punch-hole cameras. */
+html.siga-app {
+  --safe-top: max(env(safe-area-inset-top, 0px), 32px);
+  --safe-bottom: max(env(safe-area-inset-bottom, 0px), 12px);
 }
 
 ::selection {

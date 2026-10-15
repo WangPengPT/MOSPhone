@@ -37,7 +37,8 @@ export default defineNuxtConfig({
       title: 'Siga',
       meta: [
         { name: 'description', content: 'Parent area connected to SIGA, designed for your phone.' },
-        { name: 'theme-color', content: '#f7f4ed' }
+        { name: 'theme-color', content: '#f7f4ed' },
+        { name: 'viewport', content: 'width=device-width, initial-scale=1, viewport-fit=cover' }
       ],
       link: [{ rel: 'icon', type: 'image/svg+xml', href: '/favicon.svg' }]
     }

@@ -89,7 +89,10 @@ function active(to: string) {
     </aside>
 
     <div class="lg:pl-[17rem]">
-      <header class="sticky top-0 z-20 border-b border-[var(--color-line)] bg-[rgb(247_244_237_/_0.92)] px-4 py-3.5 backdrop-blur-xl">
+      <header
+        class="sticky top-0 z-20 border-b border-[var(--color-line)] bg-[rgb(247_244_237_/_0.92)] px-4 backdrop-blur-xl"
+        style="padding-top: calc(0.875rem + var(--safe-top)); padding-bottom: 0.875rem; padding-left: calc(1rem + var(--safe-left)); padding-right: calc(1rem + var(--safe-right))"
+      >
         <div class="mx-auto flex max-w-3xl items-center gap-3">
           <div class="min-w-0 flex-1">
             <p class="truncate text-xs tracking-[0.08em] text-muted uppercase lg:hidden">{{ schoolLabel }}</p>
@@ -118,7 +121,7 @@ function active(to: string) {
 
     <nav
       class="fixed inset-x-0 bottom-0 z-30 border-t border-[var(--color-line)] bg-[rgb(247_244_237_/_0.94)] px-2 pt-2 backdrop-blur-xl lg:hidden"
-      style="padding-bottom: calc(0.55rem + env(safe-area-inset-bottom)); --portal-tabbar: 4.75rem"
+      style="padding-bottom: calc(0.55rem + var(--safe-bottom)); padding-left: var(--safe-left); padding-right: var(--safe-right); --portal-tabbar: 4.75rem"
     >
       <ul class="grid grid-cols-5">
         <li v-for="item in tabs" :key="item.key">
