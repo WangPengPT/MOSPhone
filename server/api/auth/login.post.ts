@@ -1,11 +1,14 @@
 import type { LoginObject, LoginResponse } from '#shared/siga'
 import { Result } from '#shared/siga'
 import { cleanMessage, md5, sigaRequest, succeeded } from '../../utils/siga'
-import { openSession, setRemember } from '../../utils/session'
+import { assertSessionPassword, openSession, setRemember } from '../../utils/session'
 import { bindSchool, schoolSnapshot } from '../../utils/portal'
 import { serverT } from '../../utils/text'
 
 export default defineEventHandler(async (event): Promise<LoginResponse> => {
+  // Fail before calling SIGA when the Worker/host has no session key.
+  assertSessionPassword(event)
+
   const body = await readBody<{ username?: string, password?: string, recaptcha?: string, syncToken?: string, remember?: boolean }>(event)
   const username = body.username?.trim() ?? ''
   const password = body.password ?? ''
