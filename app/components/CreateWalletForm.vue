@@ -82,12 +82,32 @@ const echelonItems = computed(() =>
   (props.echelonOptions || []).map(item => ({ label: item.label, value: item.value }))
 )
 
+function optionValue(value: unknown) {
+  if (value && typeof value === 'object' && !Array.isArray(value) && 'value' in value) {
+    return (value as { value: unknown }).value
+  }
+  return value
+}
+
 function send() {
   if (!acceptedTerms.value) return
   emit('submit', {
     action: 'createWallet',
     acceptedTerms: true,
-    ...form
+    eeName: form.eeName.trim(),
+    eeDocumentType: optionValue(form.eeDocumentType),
+    eeDocNumber: form.eeDocNumber.trim(),
+    eeExpiryDate: form.eeExpiryDate.trim(),
+    eeNif: form.eeNif.replace(/\s/g, ''),
+    eeAddress: form.eeAddress.trim(),
+    eePostalCode: form.eePostalCode.trim(),
+    eePostalExt: form.eePostalExt.trim(),
+    eeCity: form.eeCity.trim(),
+    eeEmail: form.eeEmail.trim(),
+    studentName: form.studentName.trim(),
+    studentBirthDate: form.studentBirthDate.trim(),
+    studentNif: form.studentNif.replace(/\s/g, '') || '999999990',
+    studentEchelon: optionValue(form.studentEchelon)
   })
 }
 </script>

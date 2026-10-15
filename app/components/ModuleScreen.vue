@@ -205,7 +205,7 @@ async function saveBookings(payload: {
   noteKey.value = ''
   noteText.value = ''
   try {
-    const result = await $fetch('/api/portal/action', {
+    const result = await $fetch<{ ok: boolean, message?: string, needRelogin?: boolean }>('/api/portal/action', {
       method: 'POST',
       body: {
         module: 'marcacoes',
@@ -219,6 +219,11 @@ async function saveBookings(payload: {
         }
       }
     })
+    if (result.needRelogin) {
+      noteText.value = result.message || t('panel.reloginBody')
+      toast.add({ title: t('panel.reloginTitle'), description: note.value, color: 'error' })
+      return
+    }
     if (result.message) noteText.value = result.message
     else noteKey.value = result.ok ? 'module.sent' : 'module.bookingUnconfirmed'
     if (result.ok) {
@@ -246,10 +251,15 @@ async function topUp(payload: { metodo: string, valor: number, email?: string, t
   noteKey.value = ''
   noteText.value = ''
   try {
-    const result = await $fetch('/api/portal/action', {
+    const result = await $fetch<{ ok: boolean, message?: string, needRelogin?: boolean }>('/api/portal/action', {
       method: 'POST',
       body: { module: 'cartao', payload: { ...payload, studentId: studentId.value || undefined } }
     })
+    if (result.needRelogin) {
+      noteText.value = result.message || t('panel.reloginBody')
+      toast.add({ title: t('panel.reloginTitle'), description: note.value, color: 'error' })
+      return
+    }
     if (result.message) noteText.value = result.message
     else noteKey.value = result.ok ? 'module.topUpSent' : 'module.topUpRejected'
     if (result.ok) {
@@ -271,7 +281,7 @@ async function createWallet(payload: Record<string, unknown>) {
   noteKey.value = ''
   noteText.value = ''
   try {
-    const result = await $fetch('/api/portal/action', {
+    const result = await $fetch<{ ok: boolean, message?: string, needRelogin?: boolean }>('/api/portal/action', {
       method: 'POST',
       body: {
         module: 'cartao',
@@ -282,6 +292,11 @@ async function createWallet(payload: Record<string, unknown>) {
         }
       }
     })
+    if (result.needRelogin) {
+      noteText.value = result.message || t('panel.reloginBody')
+      toast.add({ title: t('panel.reloginTitle'), description: note.value, color: 'error' })
+      return
+    }
     if (result.message) noteText.value = result.message
     else noteKey.value = result.ok ? 'walletCreate.created' : 'walletCreate.rejected'
     if (result.ok) {

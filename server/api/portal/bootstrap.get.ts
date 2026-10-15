@@ -1,7 +1,8 @@
 import type { BootstrapPayload, SigaSession, Student } from '#shared/siga'
+import { cleanMessage } from '../../utils/siga'
 import { openSession } from '../../utils/session'
-import { ensurePortal, schoolSnapshot } from '../../utils/portal'
-import { schoolGetUserData, schoolOk } from '../../utils/school'
+import { dropPortal, ensurePortal, persistPortalHandoff } from '../../utils/portal'
+import { schoolGetUserData, schoolOk, SchoolResult } from '../../utils/school'
 import { normalizeStudents } from '../../utils/views'
 import { serverT } from '../../utils/text'
 
@@ -17,22 +18,13 @@ export default defineEventHandler(async (event): Promise<BootstrapPayload> => {
       authToken: session.data.schoolAuthToken,
       user: session.data.schoolUser
     })
-
-    // Persist school handoff once ready (login no longer waits for it).
-    if (portal.ready && portal.authToken && !session.data.schoolAuthToken) {
-      const snap = schoolSnapshot(portal)
-      if (snap) {
-        await session.update({
-          schoolAuthToken: snap.authToken,
-          schoolUser: snap.user
-        })
-      }
-    }
+    await persistPortalHandoff(session, portal)
 
     if (!portal.ready || !portal.authToken) {
       return {
         ok: false,
-        message: portal.message || serverT('api.portalHidden'),
+        needRelogin: true,
+        message: portal.message || serverT('api.portalHidden', event),
         portalHost: session.data.portalHost ?? null,
         email: session.data.email ?? null,
         students: profileStudent(session.data.schoolUser)
@@ -41,6 +33,19 @@ export default defineEventHandler(async (event): Promise<BootstrapPayload> => {
 
     // Lightweight: students only — home module loads its own panel separately.
     const userData = await schoolGetUserData(portal)
+    if (userData.ResponseCode === SchoolResult.AccessDenied) {
+      dropPortal(session.id)
+      await session.update({ schoolAuthToken: null })
+      return {
+        ok: false,
+        needRelogin: true,
+        message: cleanMessage(userData.ResponseMessage) || serverT('api.signIn', event),
+        portalHost: session.data.portalHost ?? null,
+        email: session.data.email ?? null,
+        students: profileStudent(session.data.schoolUser || portal.user)
+      }
+    }
+
     const fromPayload = schoolOk(userData)
       ? normalizeStudents(userData.ResponseObject)
       : []
@@ -48,6 +53,7 @@ export default defineEventHandler(async (event): Promise<BootstrapPayload> => {
 
     return {
       ok: true,
+      needRelogin: false,
       portalHost: session.data.portalHost ?? null,
       email: session.data.email ?? session.data.schoolUser?.UserExtra?.Email ?? portal.user.UserExtra?.Email ?? null,
       students: fromPayload.length ? fromPayload : fromProfile
@@ -59,6 +65,7 @@ export default defineEventHandler(async (event): Promise<BootstrapPayload> => {
       : serverT('api.portalOpen', event)
     return {
       ok: false,
+      needRelogin: true,
       message,
       portalHost: session.data.portalHost ?? null,
       email: session.data.email ?? null,

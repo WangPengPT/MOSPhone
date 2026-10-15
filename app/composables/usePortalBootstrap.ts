@@ -20,6 +20,19 @@ export function warmPortalModule(key: string, payload: ModulePayload) {
   warmModules.set(key, payload)
 }
 
+/** Drop warm + payload caches so resume/relogin cannot paint a zombie school session. */
+export function clearPortalCaches() {
+  warmBoot = null
+  warmModules.clear()
+  if (!import.meta.client) return
+  const nuxtApp = useNuxtApp()
+  for (const key of Object.keys(nuxtApp.payload.data || {})) {
+    if (key === BOOT_KEY || key.startsWith('portal-module-')) {
+      delete nuxtApp.payload.data[key]
+    }
+  }
+}
+
 export function takeWarmPortalModule(key: string) {
   const payload = warmModules.get(key) || null
   if (payload) warmModules.delete(key)

@@ -8,6 +8,9 @@ const { t } = useAppI18n()
 const { refresh: runPortalRefresh, pending: refreshPending } = usePortalRefresh()
 
 const { data, pending, refresh: refreshBootstrap } = usePortalBootstrap()
+const resumePending = ref(false)
+let lastResumeAt = 0
+let hiddenAt = 0
 
 watch(data, (value) => {
   const students = value?.students ?? []
@@ -24,6 +27,59 @@ watch([data, studentId], ([boot]) => {
   if (typeof requestIdleCallback === 'function') requestIdleCallback(() => run(), { timeout: 1500 })
   else setTimeout(run, 200)
 }, { immediate: true })
+
+async function revalidateOnResume() {
+  if (!import.meta.client || resumePending.value || pending.value) return
+  const now = Date.now()
+  if (now - lastResumeAt < 1500) return
+  lastResumeAt = now
+  resumePending.value = true
+  try {
+    const me = await $fetch<{ authenticated: boolean }>('/api/auth/me', { credentials: 'include' })
+    if (!me.authenticated) {
+      studentId.value = null
+      useState('siga-app-session').value = false
+      clearPortalCaches()
+      clearNuxtData()
+      await navigateTo('/')
+      return
+    }
+    clearPortalCaches()
+    await refreshBootstrap()
+    await runPortalRefresh()
+  }
+  catch {
+    // Keep the painted UI; the next action/refresh will surface auth errors.
+  }
+  finally {
+    resumePending.value = false
+  }
+}
+
+function onVisibility() {
+  if (document.visibilityState === 'hidden') {
+    hiddenAt = Date.now()
+    return
+  }
+  if (document.visibilityState !== 'visible') return
+  // Ignore brief focus flickers; real app background → foreground is longer.
+  if (hiddenAt && Date.now() - hiddenAt < 5000) return
+  void revalidateOnResume()
+}
+
+function onPageShow(event: PageTransitionEvent) {
+  if (event.persisted) void revalidateOnResume()
+}
+
+onMounted(() => {
+  document.addEventListener('visibilitychange', onVisibility)
+  window.addEventListener('pageshow', onPageShow)
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('visibilitychange', onVisibility)
+  window.removeEventListener('pageshow', onPageShow)
+})
 
 const students = computed(() => data.value?.students ?? [])
 
@@ -70,9 +126,10 @@ const schoolLabel = computed(() => {
 })
 
 async function logout() {
-  await $fetch('/api/auth/logout', { method: 'POST' })
+  await $fetch('/api/auth/logout', { method: 'POST' }).catch(() => undefined)
   studentId.value = null
   useState('siga-app-session').value = false
+  clearPortalCaches()
   clearNuxtData()
   await navigateTo('/')
 }
@@ -165,7 +222,12 @@ function active(to: string) {
       </header>
 
       <main class="rise mx-auto w-full min-h-0 min-w-0 max-w-3xl flex-1 overflow-x-hidden overflow-y-auto overscroll-contain px-3 py-5 sm:px-4 sm:py-6 lg:py-7 lg:pb-14">
-        <p v-if="pending" class="mb-5 text-sm ink-soft">{{ t('shell.opening') }}</p>
+        <p v-if="pending || resumePending" class="mb-5 text-sm ink-soft">{{ t('shell.opening') }}</p>
+        <div v-else-if="data?.needRelogin" class="surface mb-5 space-y-3 rounded-2xl px-4 py-4">
+          <p class="font-display text-xl tracking-[-0.02em]">{{ t('panel.reloginTitle') }}</p>
+          <p class="text-sm leading-relaxed ink-soft">{{ data.message || t('panel.reloginBody') }}</p>
+          <UButton size="sm" :label="t('shell.logout')" @click="logout" />
+        </div>
         <p v-else-if="data && !data.ok && data.message" class="mb-5 text-sm text-amber-800">{{ data.message }}</p>
         <slot />
       </main>

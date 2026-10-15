@@ -40,7 +40,11 @@ interface PortalState {
   inflight: Promise<void> | null
   ready: boolean
   message?: string
+  /** Last successful AuthToken probe (ms). */
+  checkedAt?: number
 }
+
+const PORTAL_FRESH_MS = 2 * 60 * 1000
 
 interface ModuleResult {
   ok: boolean
@@ -65,7 +69,7 @@ export async function bindSchool(
   input: { redirect: string, username?: string, password?: string, authToken?: string | null, user?: SchoolUserInfo | null }
 ) {
   const existing = store.get(sessionId)
-  if (existing?.ready && existing.authToken && !input.username) return existing
+  if (existing?.ready && existing.authToken && !input.username && !input.password) return existing
 
   const pending = bindInflight.get(sessionId)
   if (pending) return pending
@@ -80,7 +84,8 @@ export async function bindSchool(
         user: input.user,
         discovered: true,
         inflight: null,
-        ready: true
+        ready: true,
+        checkedAt: 0
       }
       store.set(sessionId, state)
       return state
@@ -101,7 +106,8 @@ export async function bindSchool(
         discovered: true,
         inflight: null,
         ready: false,
-        message: serverT('api.portalHidden')
+        message: serverT('api.portalHidden'),
+        checkedAt: Date.now()
       }
       store.set(sessionId, state)
       return state
@@ -114,7 +120,8 @@ export async function bindSchool(
       user: school.user,
       discovered: true,
       inflight: null,
-      ready: true
+      ready: true,
+      checkedAt: Date.now()
     }
     store.set(sessionId, state)
     return state
@@ -129,22 +136,76 @@ export async function bindSchool(
   }
 }
 
+/** Probe whether a restored school AuthToken is still accepted. */
+async function schoolTokenAlive(serviceUrl: string, authToken: string) {
+  try {
+    const envelope = await schoolCall(serviceUrl, 'GET_SessionUserData', {}, authToken, 8000)
+    return envelope.ResponseCode !== SchoolResult.AccessDenied
+  }
+  catch {
+    // Network blip — keep the token; the next real call will decide.
+    return true
+  }
+}
+
 export async function ensurePortal(
   sessionId: string,
   redirect: string,
   saved?: { authToken?: string | null, user?: SchoolUserInfo | null }
 ) {
   const ready = store.get(sessionId)
-  if (ready?.ready && ready.authToken) return ready
+  if (ready?.ready && ready.authToken) {
+    const fresh = Date.now() - (ready.checkedAt || 0) < PORTAL_FRESH_MS
+    if (fresh) return ready
+    if (await schoolTokenAlive(ready.serviceUrl, ready.authToken)) {
+      ready.checkedAt = Date.now()
+      return ready
+    }
+    dropPortal(sessionId)
+  }
 
   if (saved?.authToken) {
-    return bindSchool(sessionId, {
+    const restored = await bindSchool(sessionId, {
       redirect,
       authToken: saved.authToken,
       user: saved.user ?? { AuthToken: saved.authToken }
     })
+    if (restored.ready && restored.authToken && await schoolTokenAlive(restored.serviceUrl, restored.authToken)) {
+      restored.checkedAt = Date.now()
+      return restored
+    }
+    // Dead handoff — drop and try SessionToken AutoLogin from the redirect URL.
+    dropPortal(sessionId)
   }
+
   return bindSchool(sessionId, { redirect })
+}
+
+/** Keep the encrypted cookie handoff in sync with the in-memory school portal. */
+export async function persistPortalHandoff(
+  session: { data: { schoolAuthToken?: string | null, schoolUser?: SchoolUserInfo | null }, update: (data: Record<string, unknown>) => Promise<unknown> },
+  portal: PortalState
+) {
+  if (portal.ready && portal.authToken) {
+    const snap = schoolSnapshot(portal)
+    if (!snap) return
+    if (
+      session.data.schoolAuthToken === snap.authToken
+      && session.data.schoolUser?.IdUser === snap.user.IdUser
+      && session.data.schoolUser?.IdSchoolYear === snap.user.IdSchoolYear
+    ) {
+      return
+    }
+    await session.update({
+      schoolAuthToken: snap.authToken,
+      schoolUser: snap.user
+    })
+    return
+  }
+
+  if (session.data.schoolAuthToken) {
+    await session.update({ schoolAuthToken: null })
+  }
 }
 
 export async function readModule(
@@ -1158,58 +1219,99 @@ async function createDigitalWallet(state: PortalState, body: unknown) {
 
   const draft = asWalletCreateDraft(draftEnvelope.ResponseObject)
   const base = draftEnvelope.ResponseObject as Record<string, unknown>
+  const charge = base.EducationCharge && typeof base.EducationCharge === 'object' && !Array.isArray(base.EducationCharge)
+    ? base.EducationCharge as Record<string, unknown>
+    : {}
+
   const studentName = String(payload.studentName || draft?.studentName || '').trim()
   const eeName = String(payload.eeName || draft?.eeName || '').trim()
-  const eeNif = String(payload.eeNif || draft?.eeNif || '').replace(/\s/g, '')
+  const eeNif = String(payload.eeNif || draft?.eeNif || '').replace(/\D/g, '')
   const eeDocNumber = String(payload.eeDocNumber || draft?.eeDocNumber || '').trim()
   const email = String(payload.eeEmail || draft?.eeEmail || state.user.UserExtra?.Email || '').trim()
-  if (!studentName || !eeName || !eeNif || !eeDocNumber || !email) {
+  const postal = String(payload.eePostalCode || draft?.eePostalCode || '').replace(/\D/g, '')
+  const postalExt = String(payload.eePostalExt || draft?.eePostalExt || '').replace(/\D/g, '')
+  const birthDate = portalWalletDate(payload.studentBirthDate || draft?.studentBirthDate)
+  const expiryDate = portalWalletDate(payload.eeExpiryDate || draft?.eeExpiryDate)
+  const eeDocumentType = optionNumber(payload.eeDocumentType, draft?.eeDocumentType ?? 2)
+  const studentEchelon = optionNumber(payload.studentEchelon, draft?.studentEchelon ?? 0)
+  const studentNif = String(payload.studentNif || draft?.studentNif || '999999990').replace(/\D/g, '') || '999999990'
+
+  if (!studentName || !eeName || !eeNif || !eeDocNumber || !email || !birthDate || !expiryDate) {
+    return { ok: false, message: serverT('api.incomplete'), payload: null }
+  }
+  if (postal.length !== 4 || postalExt.length !== 3) {
     return { ok: false, message: serverT('api.incomplete'), payload: null }
   }
 
+  // Official webapp builds a flat DTO — it does not resubmit the whole GET_UserWalletCreate payload.
   const walletUser = {
-    ...base,
-    Id: draft?.id ?? base.Id ?? 0,
-    IdUser: draft?.idUser ?? idUser,
-    IdUserSIGA: draft?.idUserSiga ?? base.IdUserSIGA ?? 0,
-    UserSIGAName: draft?.userSigaName || studentName,
-    IdWalletCorporateInstitution: draft?.idWalletCorporateInstitution ?? base.IdWalletCorporateInstitution ?? 0,
-    IdWalletInstitution: draft?.idWalletInstitution ?? base.IdWalletInstitution ?? 0,
-    IdEnumAccountState: draft?.idEnumAccountState ?? base.IdEnumAccountState ?? 0,
-    IdEnumAccountType: draft?.idEnumAccountType ?? base.IdEnumAccountType ?? 0,
-    DocumentTypeList: base.DocumentTypeList || [],
+    Id: Number(draft?.id ?? base.Id ?? 0) || 0,
+    IdUser: Number(draft?.idUser ?? base.IdUser ?? idUser) || idUser,
+    IdUserSIGA: Number(draft?.idUserSiga ?? base.IdUserSIGA ?? 0) || 0,
+    UserSIGAName: String(draft?.userSigaName ?? base.UserSIGAName ?? studentName),
+    IdWalletCorporateInstitution: Number(draft?.idWalletCorporateInstitution ?? base.IdWalletCorporateInstitution ?? 0) || 0,
+    IdWalletInstitution: Number(draft?.idWalletInstitution ?? base.IdWalletInstitution ?? 0) || 0,
+    IdEnumAccountState: Number(draft?.idEnumAccountState ?? base.IdEnumAccountState ?? 0) || 0,
+    IdEnumAccountType: Number(draft?.idEnumAccountType ?? base.IdEnumAccountType ?? 0) || 0,
+    DocumentTypeList: Array.isArray(base.DocumentTypeList) ? base.DocumentTypeList : [],
     CanRequestClose: false,
     DateCreate: '',
     HasCloseRequest: false,
     User: {
       Name: studentName,
-      BirthDate: String(payload.studentBirthDate || draft?.studentBirthDate || ''),
-      VatNumber: String(payload.studentNif || draft?.studentNif || '999999990').replace(/\s/g, '') || '999999990',
-      IdEnumEchelon: Number(payload.studentEchelon ?? draft?.studentEchelon ?? 0) || 0,
+      BirthDate: birthDate,
+      VatNumber: studentNif,
+      IdEnumEchelon: studentEchelon,
       SchoolGrade: '',
       SchoolClass: ''
     },
     EducationCharge: {
-      IdUserSIGA: draft?.idUserSiga ?? 0,
+      IdUserSIGA: Number(draft?.idUserSiga ?? charge.IdUserSIGA ?? base.IdUserSIGA ?? 0) || 0,
       Name: eeName,
-      IdEnumDocumentType: Number(payload.eeDocumentType ?? draft?.eeDocumentType ?? 2) || 2,
+      IdEnumDocumentType: eeDocumentType || 2,
       DocNumber: eeDocNumber,
       VatNumber: eeNif,
-      Address: String(payload.eeAddress || draft?.eeAddress || ''),
-      PostalCode: String(payload.eePostalCode || draft?.eePostalCode || ''),
-      PostalCodeExtension: String(payload.eePostalExt || draft?.eePostalExt || ''),
-      City: String(payload.eeCity || draft?.eeCity || ''),
-      ExpiryDate: String(payload.eeExpiryDate || draft?.eeExpiryDate || ''),
+      Address: String(payload.eeAddress || draft?.eeAddress || '').trim(),
+      PostalCode: postal,
+      PostalCodeExtension: postalExt,
+      City: String(payload.eeCity || draft?.eeCity || '').trim(),
+      ExpiryDate: expiryDate,
       Email: email
     }
   }
 
   const envelope = await schoolCall(state.serviceUrl, 'SET_WalletUser', walletUser, state.authToken)
   return {
-    ok: envelope.ResponseCode === 1,
+    ok: envelope.ResponseCode === SchoolResult.Success,
     message: cleanMessage(envelope.ResponseMessage),
     payload: envelope.ResponseObject
   }
+}
+
+/** Nuxt UI Select may emit `{ label, value }` instead of the bare value. */
+function optionNumber(value: unknown, fallback = 0) {
+  if (value && typeof value === 'object' && !Array.isArray(value) && 'value' in (value as object)) {
+    return Number((value as { value: unknown }).value ?? fallback) || fallback
+  }
+  const num = Number(value ?? fallback)
+  return Number.isFinite(num) ? num : fallback
+}
+
+/** Official wallet forms use DD-MM-YYYY. */
+function portalWalletDate(value: unknown) {
+  if (value == null || value === '') return ''
+  const raw = String(value).trim()
+  if (/^\d{2}-\d{2}-\d{4}$/.test(raw)) return raw
+  const iso = raw.match(/^(\d{4})-(\d{2})-(\d{2})/)
+  if (iso) return `${iso[3]}-${iso[2]}-${iso[1]}`
+  const slash = raw.match(/^(\d{2})\/(\d{2})\/(\d{4})$/)
+  if (slash) return `${slash[1]}-${slash[2]}-${slash[3]}`
+  const parsed = Date.parse(raw)
+  if (!Number.isNaN(parsed)) {
+    const date = new Date(parsed)
+    return `${String(date.getDate()).padStart(2, '0')}-${String(date.getMonth() + 1).padStart(2, '0')}-${date.getFullYear()}`
+  }
+  return ''
 }
 
 /** Official SIGA payment-method enum used by wallet load / email-reference calls. */

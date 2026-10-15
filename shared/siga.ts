@@ -93,6 +93,7 @@ export interface BootstrapPayload {
   portalHost: string | null
   email: string | null
   students: Student[]
+  needRelogin?: boolean
 }
 
 export interface PortalModule {

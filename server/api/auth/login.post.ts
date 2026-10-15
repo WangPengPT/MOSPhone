@@ -42,30 +42,9 @@ export default defineEventHandler(async (event): Promise<LoginResponse> => {
     setRemember(event, body.remember === true)
     const session = await openSession(event)
 
-    // Give AutoLogin a short head start so /app often skips another school bind.
-    const bindPromise = bindSchool(session.id, { redirect, username, password })
-    const portal = await Promise.race([
-      bindPromise,
-      new Promise<null>(resolve => setTimeout(() => resolve(null), 1200))
-    ])
-    const snap = portal ? schoolSnapshot(portal) : null
-
-    if (!snap) {
-      void bindPromise
-        .then((ready) => {
-          const next = schoolSnapshot(ready)
-          if (!next) return
-          return session.update({
-            redirect,
-            email: result.email ?? null,
-            idUserCentral: result.idUserCentral ?? null,
-            portalHost,
-            schoolAuthToken: next.authToken,
-            schoolUser: next.user
-          })
-        })
-        .catch(() => undefined)
-    }
+    // Await school bind so the cookie always carries AuthToken before the app reopens.
+    const portal = await bindSchool(session.id, { redirect, username, password })
+    const snap = schoolSnapshot(portal)
 
     await session.update({
       redirect,

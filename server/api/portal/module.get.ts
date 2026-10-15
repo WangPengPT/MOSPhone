@@ -1,6 +1,6 @@
 import { portalModules } from '#shared/siga'
 import { openSession } from '../../utils/session'
-import { readModule } from '../../utils/portal'
+import { ensurePortal, persistPortalHandoff, readModule } from '../../utils/portal'
 import { serverT } from '../../utils/text'
 
 export default defineEventHandler(async (event) => {
@@ -19,6 +19,12 @@ export default defineEventHandler(async (event) => {
   }
 
   try {
+    const portal = await ensurePortal(session.id, redirect, {
+      authToken: session.data.schoolAuthToken,
+      user: session.data.schoolUser
+    })
+    await persistPortalHandoff(session, portal)
+
     return await readModule(session.id, redirect, moduleKey, studentId, {
       authToken: session.data.schoolAuthToken,
       user: session.data.schoolUser
@@ -30,7 +36,8 @@ export default defineEventHandler(async (event) => {
       message: serverT('api.portalOpen', event),
       payload: null,
       canTopUp: false,
-      canSaveDays: false
+      canSaveDays: false,
+      needRelogin: true
     }
   }
 })
