@@ -26,6 +26,16 @@ type BookingSubUnit = {
   unitId: string
 }
 
+type BookingPlate = {
+  id: number
+  name: string
+  kind: 'normal' | 'vegetarian' | 'other'
+}
+
+type DietKind = 'normal' | 'vegetarian'
+
+const DIET_STORAGE_KEY = 'siga_meal_diet'
+
 const props = withDefaults(defineProps<{
   mode?: 'days' | 'periods'
   studentId: string
@@ -39,9 +49,11 @@ const props = withDefaults(defineProps<{
   openCount: number
   saving: boolean
   userPick?: Record<string, unknown> | null
+  plates?: BookingPlate[]
 }>(), {
   mode: 'days',
-  userPick: null
+  userPick: null,
+  plates: () => []
 })
 
 const emit = defineEmits<{
@@ -62,10 +74,98 @@ const emit = defineEmits<{
 const { t, locale } = useAppI18n()
 const draft = ref(cloneDays(props.days))
 const baseline = ref(cloneDays(props.days))
-const pendingCount = computed(() => changedPicks().length)
-const dirty = computed(() => pendingCount.value > 0)
+const diet = ref<DietKind>(readStoredDiet())
 const isDaysMode = computed(() => (props.mode || 'days') !== 'periods')
 const multiPeriod = computed(() => draft.value.some(day => day.picks.length > 1))
+const showDiet = computed(() => isDaysMode.value && !multiPeriod.value)
+
+const dietOptions = computed(() => {
+  const plates = props.plates || []
+  const normal = plates.find(plate => plate.kind === 'normal')
+    || plates.find(plate => plate.kind !== 'vegetarian')
+  const vegetarian = plates.find(plate => plate.kind === 'vegetarian')
+  // SIGA often treats IdPlate 0 as the default/normal plate when only specials are listed.
+  const hasPlateCatalog = plates.length > 0
+  return [
+    {
+      kind: 'normal' as const,
+      id: normal?.id ?? (hasPlateCatalog ? 0 : null),
+      label: t('bookings.dietNormal')
+    },
+    {
+      kind: 'vegetarian' as const,
+      id: vegetarian?.id ?? null,
+      label: t('bookings.dietVegetarian')
+    }
+  ]
+})
+
+const subUnitItems = computed(() =>
+  props.subUnits.map(unit => ({
+    label: formatWalletUnit(unit.name),
+    value: unit.id
+  }))
+)
+
+const selectedSubUnit = computed({
+  get: () => props.selectedSubUnitId || props.subUnits[0]?.id || '',
+  set: (id: string) => {
+    if (id) emit('update:subUnitId', id)
+  }
+})
+
+const dietItems = computed(() =>
+  dietOptions.value.map(option => ({
+    label: option.label,
+    value: option.kind
+  }))
+)
+
+const selectedDiet = computed({
+  get: () => diet.value,
+  set: (next: DietKind) => setDiet(next)
+})
+
+const showFilterRow = computed(() => props.subUnits.length > 0 || showDiet.value)
+
+const selectUi = {
+  base: [
+    'min-h-11 px-3 gap-1.5 rounded-lg',
+    'border-0 shadow-none outline-none',
+    '!ring-0 ring-transparent',
+    'bg-[rgb(28_28_28_/_0.04)]',
+    'hover:bg-[rgb(28_28_28_/_0.07)]',
+    'focus:!bg-[rgb(28_28_28_/_0.04)] focus:!ring-0 focus:outline-none',
+    'focus-visible:!bg-[rgb(28_28_28_/_0.04)] focus-visible:!ring-0 focus-visible:outline-none',
+    'data-[state=open]:!bg-[rgb(28_28_28_/_0.07)] data-[state=open]:!ring-0'
+  ].join(' '),
+  value: 'text-sm font-medium',
+  trailingIcon: 'size-4 opacity-60',
+  content: 'min-w-44 max-w-[min(20rem,90vw)]',
+  item: 'text-base py-2.5 data-[state=checked]:bg-transparent data-[state=checked]:text-default',
+  itemTrailingIcon: 'hidden'
+}
+
+const selectedPlateId = computed(() =>
+  dietOptions.value.find(option => option.kind === diet.value)?.id ?? null
+)
+
+const canApplyPlate = computed(() => selectedPlateId.value != null)
+
+const plateDirty = computed(() => {
+  if (!showDiet.value || !props.canEdit || !canApplyPlate.value) return false
+  const plateId = selectedPlateId.value!
+  return draft.value.some(day =>
+    day.picks.some((pick) => {
+      if (!pick.selected || pick.locked || day.locked) return false
+      const current = Number(pick.raw?.IdPlate ?? pick.raw?.InitialIdPlate ?? 0)
+      return current !== plateId
+    })
+  )
+})
+
+const pendingCount = computed(() => changedPicks().length)
+const dirty = computed(() => pendingCount.value > 0 || plateDirty.value)
 
 const liveBooked = computed(() =>
   draft.value.reduce((sum, day) => sum + day.picks.filter(pick => pick.selected).length, 0)
@@ -78,6 +178,109 @@ watch(() => props.days, (days) => {
   draft.value = cloneDays(days)
   baseline.value = cloneDays(days)
 })
+
+function readStoredDiet(): DietKind {
+  if (!import.meta.client) return 'normal'
+  try {
+    const raw = localStorage.getItem(DIET_STORAGE_KEY)
+    return raw === 'vegetarian' ? 'vegetarian' : 'normal'
+  }
+  catch {
+    return 'normal'
+  }
+}
+
+function setDiet(next: DietKind) {
+  diet.value = next
+  if (!import.meta.client) return
+  try {
+    localStorage.setItem(DIET_STORAGE_KEY, next)
+  }
+  catch {
+    // ignore quota / private mode
+  }
+  applyDietToSelectedDays()
+}
+
+function classifyDietName(name: string): DietKind | null {
+  const folded = name
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9\u4e00-\u9fff]+/g, '')
+  if (!folded) return null
+  if (
+    folded.includes('vegetar')
+    || folded.includes('vegan')
+    || folded.includes('全素')
+    || folded.includes('素食')
+  ) return 'vegetarian'
+  if (
+    folded.includes('normal')
+    || folded.includes('padrao')
+    || folded.includes('standard')
+    || folded.includes('常规')
+    || folded.includes('正常')
+  ) return 'normal'
+  return null
+}
+
+function plateKindForPick(pick: BookingPick): DietKind | null {
+  const id = Number(pick.raw?.IdPlate ?? pick.raw?.InitialIdPlate ?? 0)
+  const fromCatalog = (props.plates || []).find(plate => plate.id === id)
+  if (fromCatalog?.kind === 'vegetarian' || fromCatalog?.kind === 'normal') {
+    return fromCatalog.kind
+  }
+  const named = classifyDietName(String(pick.raw?.Plate || pick.description || ''))
+  if (named) return named
+  if (Number.isFinite(id) && id === 0 && pick.selected) return 'normal'
+  return null
+}
+
+function plateShortLabel(pick: BookingPick) {
+  const kind = plateKindForPick(pick)
+  if (kind === 'vegetarian') return t('bookings.dietShortVegetarian')
+  if (kind === 'normal') return t('bookings.dietShortNormal')
+  return ''
+}
+
+function cellPlateAria(date: string) {
+  const pick = dayByDate.value.get(date)?.picks[0]
+  if (!pick) return date
+  const plate = plateShortLabel(pick)
+  return plate ? `${date} · ${plate}` : date
+}
+
+function applyPlateToPick(pick: BookingPick, plateId: number) {
+  const option = dietOptions.value.find(item => item.id === plateId)
+  const plateName = option?.kind === 'vegetarian'
+    ? t('bookings.dietVegetarian')
+    : option?.kind === 'normal'
+      ? t('bookings.dietNormal')
+      : String(pick.raw?.Plate || pick.description || '')
+  pick.raw = {
+    ...(pick.raw || {}),
+    IdPlate: plateId,
+    Plate: plateName
+  }
+  pick.description = plateName || pick.description
+}
+
+function applyDietToSelectedDays() {
+  const plateId = selectedPlateId.value
+  if (!showDiet.value || plateId == null || !props.canEdit) return
+  let changed = false
+  for (const day of draft.value) {
+    for (const pick of day.picks) {
+      if (!pick.selected || pick.locked || day.locked) continue
+      const current = Number(pick.raw?.IdPlate ?? pick.raw?.InitialIdPlate ?? 0)
+      if (current === plateId) continue
+      applyPlateToPick(pick, plateId)
+      changed = true
+    }
+  }
+  if (changed) draft.value = cloneDays(draft.value)
+}
 
 const dayByDate = computed(() => {
   const map = new Map<string, BookingDay>()
@@ -138,6 +341,41 @@ function changedPicks() {
     })))
 }
 
+function picksForSave() {
+  const plateId = selectedPlateId.value
+  const applyPlate = showDiet.value && plateId != null
+  const byKey = new Map(
+    changedPicks().map(pick => [`${pick.date}:${pick.idPeriod}`, pick])
+  )
+
+  if (applyPlate && plateDirty.value) {
+    for (const day of draft.value) {
+      for (const pick of day.picks) {
+        if (!pick.selected || pick.locked || day.locked) continue
+        const key = `${day.date}:${pick.idPeriod}`
+        if (byKey.has(key)) continue
+        const current = Number(pick.raw?.IdPlate ?? pick.raw?.InitialIdPlate ?? 0)
+        if (current === plateId) continue
+        byKey.set(key, {
+          idPeriod: pick.idPeriod,
+          date: day.date,
+          selected: pick.selected,
+          initialRequisition: pick.initialRequisition ?? pick.requisition,
+          raw: pick.raw
+        })
+      }
+    }
+  }
+
+  return Array.from(byKey.values()).map(pick => ({
+    ...pick,
+    raw: {
+      ...(pick.raw || {}),
+      ...(applyPlate ? { IdPlate: plateId } : {})
+    }
+  }))
+}
+
 function shiftMonth(delta: number) {
   const [y, m] = props.month.split('-').map(Number)
   const date = new Date(y, (m || 1) - 1 + delta, 1)
@@ -158,7 +396,11 @@ function dayNum(iso: string) {
 
 function toggle(day: BookingDay, pick: BookingPick) {
   if (!props.canEdit || pick.locked || day.locked) return
-  pick.selected = !pick.selected
+  const next = !pick.selected
+  if (next && showDiet.value && selectedPlateId.value != null) {
+    applyPlateToPick(pick, selectedPlateId.value)
+  }
+  pick.selected = next
   draft.value = cloneDays(draft.value)
 }
 
@@ -182,7 +424,7 @@ function cellClass(day: BookingDay | undefined) {
 }
 
 function confirm() {
-  emit('save', { mode: props.mode || 'days', picks: changedPicks() })
+  emit('save', { mode: props.mode || 'days', picks: picksForSave() })
 }
 </script>
 
@@ -194,23 +436,34 @@ function confirm() {
       <UButton color="neutral" variant="ghost" size="xs" icon="i-lucide-chevron-right" :aria-label="t('bookings.nextMonth')" @click="shiftMonth(1)" />
     </div>
 
-    <div v-if="subUnits.length > 1" class="flex flex-wrap gap-1.5">
-      <button
-        v-for="unit in subUnits"
-        :key="unit.id"
-        type="button"
-        class="pressable rounded-lg px-2.5 py-1.5 text-xs"
-        :class="unit.id === selectedSubUnitId ? 'bg-[rgb(28_28_28_/_0.1)] text-ink' : 'bg-[rgb(28_28_28_/_0.03)] ink-soft'"
-        @click="emit('update:subUnitId', unit.id)"
-      >
-        {{ formatWalletUnit(unit.name) }}
-      </button>
+    <div v-if="showFilterRow" class="flex items-center gap-2.5">
+      <USelect
+        v-if="subUnits.length"
+        v-model="selectedSubUnit"
+        :items="subUnitItems"
+        size="md"
+        color="neutral"
+        variant="none"
+        :highlight="false"
+        trailing-icon="i-lucide-chevron-down"
+        class="min-w-0 flex-1"
+        :ui="selectUi"
+        :aria-label="t('bookings.meal')"
+      />
+      <USelect
+        v-if="showDiet"
+        v-model="selectedDiet"
+        :items="dietItems"
+        size="md"
+        color="neutral"
+        variant="none"
+        :highlight="false"
+        trailing-icon="i-lucide-chevron-down"
+        class="min-w-0 flex-1"
+        :ui="selectUi"
+        :aria-label="t('bookings.diet')"
+      />
     </div>
-    <p v-else-if="subUnits[0]" class="text-xs ink-soft">
-      {{ subUnits[0].unitName
-        ? `${formatWalletUnit(subUnits[0].unitName)} · ${formatWalletUnit(subUnits[0].name)}`
-        : formatWalletUnit(subUnits[0].name) }}
-    </p>
 
     <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs ink-soft">
       <span>{{ t('bookings.booked', { count: liveBooked }) }}</span>
@@ -245,12 +498,18 @@ function confirm() {
             :class="cellClass(dayByDate.get(cell.date))"
             :disabled="!canEdit || !dayByDate.get(cell.date) || dayByDate.get(cell.date)?.locked || dayByDate.get(cell.date)?.picks[0]?.locked"
             :aria-pressed="dayByDate.get(cell.date)?.picks[0]?.selected || false"
-            :aria-label="cell.date"
+            :aria-label="cellPlateAria(cell.date)"
             @click="dayByDate.get(cell.date) && toggleDay(dayByDate.get(cell.date)!)"
           >
             <span>{{ cell.dayNum }}</span>
             <span
-              v-if="dayByDate.get(cell.date)?.picks[0]?.price != null && dayByDate.get(cell.date)?.picks[0]?.price !== ''"
+              v-if="dayByDate.get(cell.date)?.picks[0]?.selected && plateShortLabel(dayByDate.get(cell.date)!.picks[0]!)"
+              class="mt-0.5 max-w-full truncate px-0.5 text-[9px] font-medium leading-none opacity-80"
+            >
+              {{ plateShortLabel(dayByDate.get(cell.date)!.picks[0]!) }}
+            </span>
+            <span
+              v-else-if="dayByDate.get(cell.date)?.picks[0]?.price != null && dayByDate.get(cell.date)?.picks[0]?.price !== ''"
               class="mt-0.5 max-w-full truncate px-0.5 text-[9px] font-normal opacity-70"
             >
               {{ formatMoney(dayByDate.get(cell.date)!.picks[0]!.price) }}

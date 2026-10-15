@@ -24,9 +24,11 @@ import {
   asWalletCreateDraft,
   asWalletEchelons,
   accountCollectionBlocked,
+  extractPlatesFromUnknown,
   formatPortalDay,
   normalizeStudents,
-  walletAllowsTopUp
+  walletAllowsTopUp,
+  type BookingPlate
 } from './views'
 
 interface PortalState {
@@ -622,7 +624,8 @@ async function readBookings(
   }
 
   // Type 2 (default meal day picks): resolve school then CalendarGeneric.
-  const idSchool = await resolveBookingSchoolId(state, idUser, Number(selected.id), monthDate)
+  const schoolMeta = await resolveBookingSchoolMeta(state, idUser, Number(selected.id), monthDate)
+  const idSchool = schoolMeta.idSchool
   const dayCalendar = await schoolApiGet<SchoolEnvelope>(state.origin, '/apis/requisitions/CalendarGeneric', state.authToken, {
     IdUser: idUser,
     IdSubUnit: Number(selected.id),
@@ -648,6 +651,7 @@ async function readBookings(
         calendar: collection,
         mode: 'days',
         canEdit: !locked,
+        plates: schoolMeta.plates,
         userPick: userPick
           ? { ...userPick, IdSchool: Number((userPick as { IdSchool?: number }).IdSchool) || idSchool }
           : { IdSubUnit: Number(selected.id), IdUser: idUser, IdSchool: idSchool }
@@ -669,6 +673,7 @@ async function readBookings(
       calendar: null,
       mode: 'days',
       canEdit: false,
+      plates: schoolMeta.plates,
       userPick: null
     }),
     message: cleanMessage(
@@ -683,13 +688,13 @@ async function readBookings(
   }
 }
 
-async function resolveBookingSchoolId(
+async function resolveBookingSchoolMeta(
   state: PortalState,
   idUser: number,
   idSubUnit: number,
   monthDate: string
-) {
-  const plates = await schoolCall<{ SchoolCollection?: Array<{ IdSchool?: number }> }>(
+): Promise<{ idSchool: number, plates: BookingPlate[] }> {
+  const plates = await schoolCall(
     state.serviceUrl,
     'GET_ProjectAndUserPlates',
     {
@@ -702,16 +707,21 @@ async function resolveBookingSchoolId(
     },
     state.authToken
   )
+  let idSchool = Number(state.user.IdSchool) || 0
+  let plateOptions: BookingPlate[] = []
   if (schoolOk(plates)) {
-    const schools = Array.isArray(plates.ResponseObject?.SchoolCollection)
-      ? plates.ResponseObject.SchoolCollection
+    const payload = plates.ResponseObject
+    plateOptions = extractPlatesFromUnknown(payload)
+    const schools = payload && typeof payload === 'object' && !Array.isArray(payload)
+      && Array.isArray((payload as { SchoolCollection?: unknown[] }).SchoolCollection)
+      ? (payload as { SchoolCollection: Array<{ IdSchool?: number }> }).SchoolCollection
       : []
     const first = schools.find(item => Number(item.IdSchool) > 0) || schools[0]
     if (first?.IdSchool != null && Number(first.IdSchool) > 0) {
-      return Number(first.IdSchool)
+      idSchool = Number(first.IdSchool)
     }
   }
-  return Number(state.user.IdSchool) || 0
+  return { idSchool, plates: plateOptions }
 }
 
 async function readPayments(state: PortalState, studentId?: string | null): Promise<ModuleResult> {

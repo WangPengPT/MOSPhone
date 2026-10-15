@@ -179,7 +179,12 @@ export const pt = {
     emptyMonth: 'Não há dias marcáveis neste mês para o serviço selecionado.',
     noUnits: 'Este educando não tem serviço de refeição ou prolongamento disponível para marcar.',
     prevMonth: 'Mês anterior',
-    nextMonth: 'Mês seguinte'
+    nextMonth: 'Mês seguinte',
+    diet: 'Tipo de prato',
+    dietNormal: 'Normal',
+    dietVegetarian: 'Vegetariano',
+    dietShortNormal: 'Norm.',
+    dietShortVegetarian: 'Veg.'
   },
   meals: {
     breakfast: 'Pequeno-almoço',

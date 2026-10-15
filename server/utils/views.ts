@@ -147,6 +147,12 @@ export interface BookingSubUnit {
   calendarType?: number
 }
 
+export interface BookingPlate {
+  id: number
+  name: string
+  kind: 'normal' | 'vegetarian' | 'other'
+}
+
 export interface BookingsPanel {
   kind: 'bookings'
   mode: 'days' | 'periods'
@@ -159,6 +165,8 @@ export interface BookingsPanel {
   canEdit: boolean
   bookedCount: number
   openCount: number
+  /** Available meal plates (normal / vegetarian / …) from SIGA */
+  plates?: BookingPlate[]
   /** Original UserPick wrapper needed by CalendarGeneric POST */
   userPick?: Record<string, unknown> | null
 }
@@ -432,6 +440,108 @@ export function asList(titleKey: string | undefined, payload: unknown, extras?: 
   }
 }
 
+export function classifyPlateKind(name: string): BookingPlate['kind'] {
+  const folded = name
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9\u4e00-\u9fff]+/g, '')
+  if (!folded) return 'normal'
+  if (
+    folded.includes('vegetar')
+    || folded.includes('vegan')
+    || folded.includes('全素')
+    || folded.includes('素食')
+  ) return 'vegetarian'
+  if (
+    folded.includes('normal')
+    || folded.includes('padrao')
+    || folded.includes('standard')
+    || folded.includes('常规')
+    || folded.includes('正常')
+  ) return 'normal'
+  return 'other'
+}
+
+export function mergeBookingPlates(...groups: Array<BookingPlate[] | undefined | null>): BookingPlate[] {
+  const byId = new Map<number, BookingPlate>()
+  for (const group of groups) {
+    if (!group) continue
+    for (const plate of group) {
+      if (!Number.isFinite(plate.id) || plate.id < 0) continue
+      const existing = byId.get(plate.id)
+      if (!existing || (existing.kind === 'other' && plate.kind !== 'other')) {
+        byId.set(plate.id, plate)
+      }
+    }
+  }
+  return Array.from(byId.values()).sort((a, b) => {
+    const rank = (kind: BookingPlate['kind']) => (kind === 'normal' ? 0 : kind === 'vegetarian' ? 1 : 2)
+    return rank(a.kind) - rank(b.kind) || a.id - b.id
+  })
+}
+
+export function extractPlatesFromUnknown(source: unknown, depth = 0): BookingPlate[] {
+  if (!source || depth > 6) return []
+  if (Array.isArray(source)) {
+    const direct = source
+      .map((item) => {
+        if (!item || typeof item !== 'object' || Array.isArray(item)) return null
+        const row = item as Record<string, unknown>
+        if (!('IdPlate' in row || 'idPlate' in row)) return null
+        const id = Number(row.IdPlate ?? row.idPlate)
+        if (!Number.isFinite(id) || id < 0) return null
+        const name = String(row.Plate || row.Description || row.Name || row.PlateDescription || row.name || '').trim()
+        if (!name && id === 0) return null
+        return {
+          id,
+          name: name || `Plate ${id}`,
+          kind: classifyPlateKind(name || (id === 0 ? 'normal' : ''))
+        } satisfies BookingPlate
+      })
+      .filter((item): item is BookingPlate => Boolean(item))
+    if (direct.length) return mergeBookingPlates(direct)
+    return mergeBookingPlates(...source.map(item => extractPlatesFromUnknown(item, depth + 1)))
+  }
+  if (typeof source !== 'object') return []
+  const record = source as Record<string, unknown>
+  const preferredKeys = [
+    'UserPlates',
+    'PlateCollection',
+    'ProjectPlates',
+    'Plates',
+    'UserPlateCollection',
+    'SchoolPlates',
+    'SchoolCollection'
+  ]
+  const groups: BookingPlate[][] = []
+  for (const key of preferredKeys) {
+    if (key in record) groups.push(extractPlatesFromUnknown(record[key], depth + 1))
+  }
+  return mergeBookingPlates(...groups)
+}
+
+export function extractPlatesFromDayCollection(dayCollection: Array<Record<string, unknown>>): BookingPlate[] {
+  const plates: BookingPlate[] = []
+  for (const bucket of dayCollection) {
+    const rows = Array.isArray(bucket.UserPickDays)
+      ? bucket.UserPickDays as Array<Record<string, unknown>>
+      : []
+    for (const row of rows) {
+      const id = Number(row.IdPlate ?? 0)
+      if (!Number.isFinite(id) || id < 0) continue
+      const name = String(row.Plate || '').trim()
+      if (!name && id === 0) continue
+      plates.push({
+        id,
+        name: name || `Plate ${id}`,
+        kind: classifyPlateKind(name || (id === 0 ? 'normal' : ''))
+      })
+    }
+  }
+  return mergeBookingPlates(plates)
+}
+
 export function asBookings(input: {
   studentId: string
   month: string
@@ -441,6 +551,7 @@ export function asBookings(input: {
   mode?: 'days' | 'periods'
   canEdit?: boolean
   userPick?: Record<string, unknown> | null
+  plates?: BookingPlate[]
 }): BookingsPanel {
   const calendar = input.calendar && typeof input.calendar === 'object' && !Array.isArray(input.calendar)
     ? input.calendar as Record<string, unknown>
@@ -465,6 +576,7 @@ function asDayBookings(
     selectedSubUnitId: string | null
     canEdit?: boolean
     userPick?: Record<string, unknown> | null
+    plates?: BookingPlate[]
   },
   calendar: Record<string, unknown>,
   dayCollection: Array<Record<string, unknown>>
@@ -514,6 +626,7 @@ function asDayBookings(
   }).filter(day => day.date).sort((a, b) => a.date.localeCompare(b.date))
 
   const canEdit = input.canEdit !== false && !rootLocked
+  const plates = mergeBookingPlates(input.plates, extractPlatesFromDayCollection(dayCollection))
   return {
     kind: 'bookings',
     mode: 'days',
@@ -526,6 +639,7 @@ function asDayBookings(
     canEdit,
     bookedCount: days.reduce((sum, day) => sum + day.picks.filter(pick => pick.selected).length, 0),
     openCount: days.reduce((sum, day) => sum + day.picks.filter(pick => !pick.selected && !pick.locked).length, 0),
+    plates,
     userPick
   }
 }

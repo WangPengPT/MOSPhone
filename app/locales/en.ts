@@ -177,7 +177,12 @@ export const en = {
     emptyMonth: 'No bookable days in this month for the selected service.',
     noUnits: 'This student has no meal or after-school service available for booking.',
     prevMonth: 'Previous month',
-    nextMonth: 'Next month'
+    nextMonth: 'Next month',
+    diet: 'Meal type',
+    dietNormal: 'Normal',
+    dietVegetarian: 'Vegetarian',
+    dietShortNormal: 'Norm.',
+    dietShortVegetarian: 'Veg.'
   },
   meals: {
     breakfast: 'Breakfast',

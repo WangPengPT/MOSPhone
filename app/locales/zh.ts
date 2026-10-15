@@ -179,7 +179,12 @@ export const zh = {
     emptyMonth: '该服务在本月没有可预约日期。',
     noUnits: '该学生没有可预约的餐食或课后服务。',
     prevMonth: '上个月',
-    nextMonth: '下个月'
+    nextMonth: '下个月',
+    diet: '餐食类型',
+    dietNormal: '正常',
+    dietVegetarian: '全素',
+    dietShortNormal: '正常',
+    dietShortVegetarian: '全素'
   },
   meals: {
     breakfast: '早餐',

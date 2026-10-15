@@ -333,6 +333,7 @@ const walletPanel = computed(() => panel.value?.kind === 'wallet' ? panel.value 
         :open-count="bookings.openCount || 0"
         :saving="saving"
         :user-pick="bookings.userPick || null"
+        :plates="bookings.plates || []"
         @update:month="bookingMonth = $event"
         @update:sub-unit-id="bookingSubUnitId = $event"
         @save="saveBookings"
