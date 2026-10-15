@@ -13,6 +13,16 @@ export default defineNuxtConfig({
       { name: 'Noto Sans SC', provider: 'google', weights: [400, 500, 600] }
     ]
   },
+  // Cloudflare Workers: each `wrangler deploy` regenerates config and can wipe
+  // dashboard Variables/Secrets unless keep_vars is true.
+  nitro: {
+    cloudflare: {
+      deployConfig: true,
+      wrangler: {
+        keep_vars: true
+      }
+    }
+  },
   runtimeConfig: {
     sigaApi: 'https://siga.edubox.pt/api',
     sigaKey: '8bb8a6fa-2653-4099-a2cc-0805feb7b4a9',

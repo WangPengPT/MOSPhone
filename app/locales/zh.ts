@@ -31,7 +31,7 @@ export const zh = {
     refused: '门户拒绝了这个请求。',
     unreachable: '无法联系学校门户。',
     redirect: '学校门户没有完成跳转。',
-    session: '服务器未配置登录会话密钥。本地请在 .env 设置 NUXT_SESSION_PASSWORD（至少 32 字符）；手机 App 访问的是线上 Worker，请在 Cloudflare 该 Worker 的环境变量/Secrets 中配置同名项。',
+    session: '线上 Worker 未配置会话密钥。请到 Cloudflare → 该 Worker → Settings → Variables and Secrets 设置 NUXT_SESSION_PASSWORD（≥32 字符）。本地 .env 只对电脑网页生效，对 App 无效。',
     sigaDown: 'SIGA 没有响应。',
     portalOpen: '无法打开学校门户。',
     needWallet: '需要先创建数字校园卡，才能充值。'

@@ -29,7 +29,7 @@ export const en = {
     refused: 'The portal refused the request.',
     unreachable: 'Could not reach the school portal.',
     redirect: 'The school portal did not finish the redirect.',
-    session: 'Session key missing on the server. Locally set NUXT_SESSION_PASSWORD in .env (≥32 chars). The Android app uses the online Worker — set the same variable in that Cloudflare Worker’s Secrets.',
+    session: 'Session key missing on the Worker. Set NUXT_SESSION_PASSWORD (≥32 chars) in Cloudflare → this Worker → Settings → Variables and Secrets (not only local .env).',
     sigaDown: 'SIGA did not respond.',
     portalOpen: 'Could not open the school portal.',
     needWallet: 'Create the digital school card before topping up.'

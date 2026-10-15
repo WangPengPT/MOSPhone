@@ -7,10 +7,13 @@ const SESSION_MAX_AGE = 60 * 60 * 12
 const REMEMBER_MAX_AGE = 60 * 60 * 24 * 30
 
 function cookieBase(event?: H3Event) {
-  // Workers / reverse proxies are always HTTPS in production; Secure cookies
-  // keep Android WebView session storage reliable after login.
+  // Always mark Secure on the Workers host (HTTPS). SameSite=Lax is enough for
+  // same-origin App WebView + browser XHR; avoid SameSite=None quirks.
+  const host = event ? String(getRequestHeader(event, 'host') || '') : ''
   const forwarded = event ? String(getRequestHeader(event, 'x-forwarded-proto') || '') : ''
-  const secure = process.env.NODE_ENV === 'production' || forwarded.includes('https')
+  const secure = process.env.NODE_ENV === 'production'
+    || forwarded.includes('https')
+    || host.includes('workers.dev')
   return {
     httpOnly: true,
     sameSite: 'lax' as const,
@@ -19,11 +22,19 @@ function cookieBase(event?: H3Event) {
   }
 }
 
-/** Prefer runtime env (Cloudflare Worker secrets) over build-time empty defaults. */
-export function readSessionPassword() {
-  const config = useRuntimeConfig()
+function cloudflareEnv(event?: H3Event): Record<string, unknown> {
+  const ctx = event?.context as { cloudflare?: { env?: Record<string, unknown> } } | undefined
+  return ctx?.cloudflare?.env || {}
+}
+
+/** Prefer Cloudflare bindings / runtime env over build-time empty defaults. */
+export function readSessionPassword(event?: H3Event) {
+  const config = useRuntimeConfig(event)
+  const cf = cloudflareEnv(event)
   const candidates = [
     config.sessionPassword,
+    cf.NUXT_SESSION_PASSWORD,
+    cf.SESSION_PASSWORD,
     process.env.NUXT_SESSION_PASSWORD,
     process.env.SESSION_PASSWORD
   ]
@@ -34,12 +45,12 @@ export function readSessionPassword() {
   return String(config.sessionPassword || process.env.NUXT_SESSION_PASSWORD || '').trim()
 }
 
-export function sessionReady() {
-  return readSessionPassword().length >= 32
+export function sessionReady(event?: H3Event) {
+  return readSessionPassword(event).length >= 32
 }
 
 export function assertSessionPassword(event?: H3Event) {
-  if (sessionReady()) return
+  if (sessionReady(event)) return
   throw createError({
     statusCode: 500,
     statusMessage: serverT('api.session', event)
@@ -56,7 +67,7 @@ export function setRemember(event: H3Event, remember: boolean) {
 
 export function openSession(event: H3Event) {
   assertSessionPassword(event)
-  const password = readSessionPassword()
+  const password = readSessionPassword(event)
   const maxAge = getCookie(event, REMEMBER_COOKIE) === '1' ? REMEMBER_MAX_AGE : SESSION_MAX_AGE
   return useSession<SigaSession>(event, {
     password,

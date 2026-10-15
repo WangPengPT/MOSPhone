@@ -13,8 +13,11 @@ const route = useRoute()
 const flow = typeof route.query.flow === 'string' ? route.query.flow : ''
 const linkToken = typeof route.query.token === 'string' ? route.query.token : ''
 
-const { data: me } = await useFetch('/api/auth/me')
-if (me.value?.authenticated) await navigateTo('/app')
+const { data: me } = await useFetch('/api/auth/me', { credentials: 'include' })
+if (me.value?.authenticated) {
+  if (import.meta.client && isSigaApp()) enterAppHard('/app')
+  else await navigateTo('/app')
+}
 
 const sync = ref<{ source: string, target: string } | null>(null)
 const bootText = ref('')
@@ -33,7 +36,10 @@ if (flow === 'auto-login' && linkToken) {
       method: 'POST',
       body: { flow, token: linkToken }
     })
-    if (result.ok && result.to) await navigateTo(result.to)
+    if (result.ok && result.to) {
+      if (import.meta.client && isSigaApp()) enterAppHard(result.to)
+      else await navigateTo(result.to)
+    }
     else if (result.message) bootText.value = result.message
     else bootKey.value = 'login.autoFailed'
   }
@@ -168,6 +174,7 @@ async function onSubmit(event: FormSubmitEvent<z.output<typeof schema.value>>) {
   try {
     const result = await $fetch<LoginResponse>('/api/auth/login', {
       method: 'POST',
+      credentials: 'include',
       body: {
         username: event.data.username,
         password: event.data.password,
@@ -187,6 +194,11 @@ async function onSubmit(event: FormSubmitEvent<z.output<typeof schema.value>>) {
       else {
         localStorage.removeItem(USER_KEY)
         clearLocalSecret()
+      }
+      // WebView: flush cookies then full navigation so /api/auth/me sees the session.
+      if (isSigaApp()) {
+        enterAppHard(result.to)
+        return
       }
       // Prefetch in background; never block navigation.
       void warmAppEntry()

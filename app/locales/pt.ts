@@ -31,7 +31,7 @@ export const pt = {
     refused: 'O portal recusou o pedido.',
     unreachable: 'Não foi possível contactar o portal da escola.',
     redirect: 'O portal da escola não concluiu o redirecionamento.',
-    session: 'Falta a chave de sessão no servidor. Em local, defina NUXT_SESSION_PASSWORD no .env (≥32). A app Android usa o Worker online — configure a mesma variável nos Secrets desse Worker na Cloudflare.',
+    session: 'Falta a chave de sessão no Worker. Defina NUXT_SESSION_PASSWORD (≥32) em Cloudflare → este Worker → Settings → Variables and Secrets (o .env local não serve para a app).',
     sigaDown: 'O SIGA não respondeu.',
     portalOpen: 'Não foi possível abrir o portal da escola.',
     needWallet: 'Crie o cartão escolar digital antes de carregar saldo.'
