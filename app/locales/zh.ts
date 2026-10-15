@@ -34,7 +34,14 @@ export const zh = {
     session: '线上 Worker 未配置会话密钥。请到 Cloudflare → 该 Worker → Settings → Variables and Secrets 设置 NUXT_SESSION_PASSWORD（≥32 字符）。本地 .env 只对电脑网页生效，对 App 无效。',
     sigaDown: 'SIGA 没有响应。',
     portalOpen: '无法打开学校门户。',
-    needWallet: '需要先创建数字校园卡，才能充值。'
+    needWallet: '需要先创建数字校园卡，才能充值。',
+    mbwayInvalidPhone: 'MB WAY 手机号无效。',
+    mbwayMissing: '这个号码没有关联的 MB WAY 账户。',
+    mbwayInactive: '当前校园卡状态不允许 MB WAY 充值。',
+    mbwayProvider: 'MB WAY 未能完成请求，请稍后再试。',
+    mbwayMonthLimit: '本次充值超过了月度限额。',
+    mbwayAboveMax: '金额超过允许的上限。',
+    mbwayBelowMin: '金额低于 MB WAY 的最低充值额。'
   },
   brand: {
     role: '家长'
@@ -184,7 +191,8 @@ export const zh = {
     dietNormal: '正常',
     dietVegetarian: '全素',
     dietShortNormal: '正常',
-    dietShortVegetarian: '全素'
+    dietShortVegetarian: '全素',
+    limitReached: '这个时段的学校订餐名额已满。'
   },
   meals: {
     breakfast: '早餐',
@@ -210,10 +218,10 @@ export const zh = {
   topup: {
     title: '校园卡充值',
     action: '充值',
-    hint: '请求会发到学校门户。Multibanco 和 Payshop 会把参考号发到邮箱。',
+    hint: 'MB WAY 会在手机上弹确认。Multibanco / Payshop 把付款参考号发到邮箱（这里不用填金额）。',
     method: '方式',
     amount: '金额',
-    phone: '手机',
+    phone: '手机号（MB WAY）',
     email: '接收参考号的邮箱',
     submit: '发送请求'
   },

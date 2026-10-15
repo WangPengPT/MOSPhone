@@ -847,6 +847,7 @@ async function saveBookings(state: PortalState, body: unknown) {
     studentId?: string | number | null
     subUnitId?: string | number | null
     userPick?: Record<string, unknown> | null
+    plates?: Array<Record<string, unknown>> | null
     picks?: Array<{
       idPeriod?: number
       date?: string
@@ -864,10 +865,13 @@ async function saveBookings(state: PortalState, body: unknown) {
 
   if (payload.mode !== 'periods') {
     const shell = (payload.userPick && typeof payload.userPick === 'object')
-      ? { ...payload.userPick }
+      ? payload.userPick as Record<string, unknown>
       : {}
-    delete shell.UserPickDays
-    delete shell.UserPickerDaysCollection
+    const plateOptions = Array.isArray(shell.UserPlates) && shell.UserPlates.length
+      ? shell.UserPlates as Array<Record<string, unknown>>
+      : Array.isArray(payload.plates)
+        ? payload.plates as Array<Record<string, unknown>>
+        : []
 
     const idSchool = Number(shell.IdSchool || state.user.IdSchool || 0)
     const userPickDays = picks.map((pick) => {
@@ -886,35 +890,59 @@ async function saveBookings(state: PortalState, body: unknown) {
       else if (wasBooked) {
         requisition = 5
       }
+
+      let idPlate = Number(raw.IdPlate ?? raw.InitialIdPlate ?? 0)
+      // Official UI always resolves a plate when booking (first non-disabled UserPlate).
+      if (pick.selected && !(idPlate > 0) && plateOptions.length) {
+        const open = plateOptions.find(plate => plate.Disabled !== true && Number(plate.IdPlate ?? plate.id) > 0)
+          || plateOptions.find(plate => Number(plate.IdPlate ?? plate.id) > 0)
+        idPlate = Number(open?.IdPlate ?? open?.id ?? 0) || 0
+      }
+      const plateName = raw.Plate != null
+        ? String(raw.Plate)
+        : String((plateOptions.find(plate => Number(plate.IdPlate ?? plate.id) === idPlate)?.Plate
+          || plateOptions.find(plate => Number(plate.IdPlate ?? plate.id) === idPlate)?.name
+          || '') || '')
+      const familyValue = raw.InitialFamilyValue ?? raw.FamilyValue
+      // Calendar_UserPickDay schema is additionalProperties:false — only known fields.
       return {
-        IdSubUnit: Number(raw.IdSubUnit ?? idSubUnit),
-        IdSchoolAttendance: raw.IdSchoolAttendance ?? 0,
-        SchoolAttendance: raw.SchoolAttendance ?? '',
-        IdSchoolRequisition: raw.IdSchoolRequisition ?? idSchool,
-        SchoolRequisition: raw.SchoolRequisition ?? '',
-        IdUserSchool: raw.IdUserSchool ?? 0,
+        IdSubUnit: Number(raw.IdSubUnit ?? idSubUnit) || idSubUnit,
+        IdSchoolAttendance: Number(raw.IdSchoolAttendance ?? 0) || 0,
+        SchoolAttendance: raw.SchoolAttendance != null ? String(raw.SchoolAttendance) : '',
+        IdSchoolRequisition: Number(raw.IdSchoolRequisition ?? idSchool) || idSchool,
+        SchoolRequisition: raw.SchoolRequisition != null ? String(raw.SchoolRequisition) : '',
+        IdUserSchool: Number(raw.IdUserSchool ?? 0) || 0,
         Date: portalDate,
-        IdRequisition: raw.InitialIdRequisition ?? raw.IdRequisition ?? 0,
+        IdRequisition: Number(raw.InitialIdRequisition ?? raw.IdRequisition ?? 0) || 0,
         Requisition: requisition,
-        IsRequisitionLocked: Boolean(shell.IsRequisitionLockedByInvoice || raw.IsRequisitionLocked),
-        IdAttendance: raw.InitialIdAttendance ?? raw.IdAttendance ?? 0,
-        Attendance: raw.Attendance ?? raw.InitialAttendance ?? 0,
-        IsAttendanceLocked: Boolean(shell.IsRequisitionLockedByInvoice || raw.IsAttendanceLocked),
-        IdPlate: raw.IdPlate ?? raw.InitialIdPlate ?? 0,
-        IdUserEchelon: raw.InitialIdUserEchelon ?? raw.IdUserEchelon ?? 0,
-        Echelon: raw.InitialEchelon ?? raw.Echelon ?? '',
-        FamilyValue: raw.InitialFamilyValue ?? raw.FamilyValue ?? 0,
-        FineValue: raw.FineValue ?? 0,
-        PlateValue: raw.PlateValue ?? 0,
-        LimitPickTime: raw.LimitPickTime ?? '',
-        FineStartDate: raw.FineStartDate ?? '',
+        IsRequisitionLocked: Boolean(raw.IsRequisitionLocked || raw.IsRequisitionLockedByInvoice),
+        IdAttendance: Number(raw.InitialIdAttendance ?? raw.IdAttendance ?? 0) || 0,
+        Attendance: Number(raw.Attendance ?? raw.InitialAttendance ?? 0) || 0,
+        IsAttendanceLocked: Boolean(raw.IsAttendanceLocked || raw.IsAttendanceLockedByInvoice),
+        IdPlate: idPlate > 0 ? idPlate : null,
+        Plate: plateName || null,
+        IdUserEchelon: Number(raw.InitialIdUserEchelon ?? raw.IdUserEchelon ?? 0) || 0,
+        Echelon: raw.InitialEchelon != null || raw.Echelon != null
+          ? String(raw.InitialEchelon ?? raw.Echelon ?? '')
+          : '',
+        FamilyValue: familyValue == null || familyValue === '' ? null : String(familyValue),
+        IdPeriod: Number(raw.IdPeriod ?? pick.idPeriod ?? 0) || 0,
+        IsPeriodSelected: Boolean(raw.IsPeriodSelected ?? pick.selected),
+        IsPeriodLocked: Boolean(raw.IsPeriodLocked),
+        Order: Number(raw.Order ?? 0) || 0,
+        FineValue: Number(raw.FineValue ?? 0) || 0,
+        LimitPickTime: raw.LimitPickTime != null ? String(raw.LimitPickTime) : '',
+        FineStartDate: raw.FineStartDate != null ? String(raw.FineStartDate) : '',
         FineLimitReached: Boolean(raw.FineLimitReached),
-        IsAttendanceLockedByInvoice: Boolean(raw.IsAttendanceLockedByInvoice),
-        IsRequisitionLockedByInvoice: Boolean(raw.IsRequisitionLockedByInvoice),
         RequisitionWithFine: withFine || requisition === 6,
-        SetAttendance: false,
+        IsRequisitionLockedByInvoice: Boolean(raw.IsRequisitionLockedByInvoice),
+        IsAttendanceLockedByInvoice: Boolean(raw.IsAttendanceLockedByInvoice),
         SetRequisition: true,
-        IdUser: Number(raw.IdUser ?? idUser)
+        SetAttendance: false,
+        IdUser: Number(raw.IdUser ?? idUser) || idUser,
+        IdRequisitionJustification: Number(raw.IdRequisitionJustification ?? 0) || 0,
+        IsRequisitionJustificationLocked: Boolean(raw.IsRequisitionJustificationLocked),
+        IdRequisitionJustificationApprovedState: Number(raw.IdRequisitionJustificationApprovedState ?? 0) || 0
       }
     }).filter(item => item.Date)
 
@@ -922,13 +950,42 @@ async function saveBookings(state: PortalState, body: unknown) {
       return { ok: false, message: serverT('api.incomplete'), payload: null }
     }
 
-    const wrapper = {
-      ...shell,
-      IdSubUnit: idSubUnit,
+    // Calendar_UserPick schema is additionalProperties:false — never spread the GET shell.
+    const wrapper: Record<string, unknown> = {
       IdUser: idUser,
+      IdSubUnit: idSubUnit,
       IdSchool: idSchool,
-      UserToken: '',
+      UserToken: typeof shell.UserToken === 'string' ? shell.UserToken : '',
       UserPickDays: userPickDays
+    }
+    if (shell.Name != null) wrapper.Name = String(shell.Name)
+    if (shell.StartDate != null) wrapper.StartDate = String(shell.StartDate)
+    if (shell.EndDate != null) wrapper.EndDate = String(shell.EndDate)
+    if (shell.BalanceAccount != null) wrapper.BalanceAccount = String(shell.BalanceAccount)
+    if (shell.DebitAccount != null) wrapper.DebitAccount = String(shell.DebitAccount)
+    if (shell.DateLastPenalty != null) wrapper.DateLastPenalty = String(shell.DateLastPenalty)
+    if (plateOptions.length) {
+      wrapper.UserPlates = plateOptions.map(plate => ({
+        IdPlate: Number(plate.IdPlate ?? plate.id ?? 0) || 0,
+        Plate: plate.Plate != null || plate.name != null ? String(plate.Plate ?? plate.name) : null,
+        ShortPlate: plate.ShortPlate != null || plate.shortName != null
+          ? String(plate.ShortPlate ?? plate.shortName)
+          : null,
+        StartPeriod: plate.StartPeriod != null ? String(plate.StartPeriod) : null,
+        EndPeriod: plate.EndPeriod != null ? String(plate.EndPeriod) : null
+      })).filter(plate => plate.IdPlate > 0)
+    }
+    if (shell.Balance && typeof shell.Balance === 'object' && !Array.isArray(shell.Balance)) {
+      const balance = shell.Balance as Record<string, unknown>
+      wrapper.Balance = {
+        HasWallet: Boolean(balance.HasWallet),
+        LimitValue: Number(balance.LimitValue ?? 0) || 0,
+        LimitNumber: Number(balance.LimitNumber ?? 0) || 0,
+        Balance: Number(balance.Balance ?? 0) || 0,
+        ReservedBalance: Number(balance.ReservedBalance ?? 0) || 0,
+        AvailableBalance: Number(balance.AvailableBalance ?? 0) || 0,
+        CreditBalance: Number(balance.CreditBalance ?? 0) || 0
+      }
     }
 
     const envelope = await schoolApiPost<SchoolEnvelope>(
@@ -937,6 +994,20 @@ async function saveBookings(state: PortalState, body: unknown) {
       state.authToken,
       [wrapper]
     )
+
+    if (!envelope || typeof envelope !== 'object' || !('ResponseCode' in envelope)) {
+      const detail = envelope && typeof envelope === 'object'
+        ? String((envelope as { title?: string, message?: string, text?: string }).title
+          || (envelope as { message?: string }).message
+          || (envelope as { text?: string }).text
+          || '')
+        : ''
+      return {
+        ok: false,
+        message: cleanMessage(detail) || serverT('api.refused'),
+        payload: envelope
+      }
+    }
 
     const limited = Boolean(
       envelope.ResponseObject
@@ -947,7 +1018,7 @@ async function saveBookings(state: PortalState, body: unknown) {
     return {
       ok: envelope.ResponseCode === SchoolResult.Success && !limited,
       message: cleanMessage(envelope.ResponseMessage)
-        || (limited ? serverT('api.incomplete') : ''),
+        || (limited ? serverT('bookings.limitReached') : ''),
       payload: envelope.ResponseObject
     }
   }
@@ -1141,6 +1212,13 @@ async function createDigitalWallet(state: PortalState, body: unknown) {
   }
 }
 
+/** Official SIGA payment-method enum used by wallet load / email-reference calls. */
+const WalletPaymentMethod = {
+  Multibanco: 1,
+  Payshop: 2,
+  MBWay: 3
+} as const
+
 async function topUpWallet(state: PortalState, body: unknown) {
   const payload = (body && typeof body === 'object' ? body : {}) as {
     metodo?: string
@@ -1149,60 +1227,150 @@ async function topUpWallet(state: PortalState, body: unknown) {
     telemovel?: string
     studentId?: string | null
   }
-  const amount = Number(payload.valor)
-  if (!amount || amount <= 0) {
+
+  const idUser = payload.studentId ? Number(payload.studentId) || state.user.IdUser : state.user.IdUser
+  if (!idUser) {
     return { ok: false, message: serverT('api.incomplete'), payload: null }
   }
 
-  const idUser = payload.studentId ? Number(payload.studentId) || state.user.IdUser : state.user.IdUser
-  const balance = await schoolCall(state.serviceUrl, 'GET_WalletBalanceByUser', {
-    IdUser: idUser,
-    IdProject: state.user.IdProject,
-    IdSchoolYear: state.user.IdSchoolYear,
-    IdUserType: state.user.IdUserType
-  }, state.authToken).catch(() => null)
-  const balancePayload = balance && schoolOk(balance) ? balance.ResponseObject : null
-  const hasWallet = (() => {
-    if (!balancePayload || typeof balancePayload !== 'object') return null
-    const record = balancePayload as Record<string, unknown>
-    const nested = record.Balance && typeof record.Balance === 'object' && !Array.isArray(record.Balance)
-      ? record.Balance as Record<string, unknown>
-      : record
-    return typeof nested.HasWallet === 'boolean' ? nested.HasWallet : typeof record.HasWallet === 'boolean' ? record.HasWallet : null
-  })()
-  if (hasWallet === false) {
+  const method = String(payload.metodo || 'mbway').toLowerCase()
+  const context = await walletTopUpContext(state, idUser)
+  if (!context) {
     return { ok: false, message: serverT('api.needWallet'), payload: null }
   }
 
-  const method = String(payload.metodo || 'mbway').toLowerCase()
   if (method === 'mbway') {
+    const amount = Number(payload.valor)
+    const phone = String(payload.telemovel || '').replace(/\D/g, '')
+    if (!amount || amount <= 0 || phone.length < 9) {
+      return { ok: false, message: serverT('api.incomplete'), payload: null }
+    }
+    if (context.minimumMBWayLoad != null && amount < context.minimumMBWayLoad) {
+      return { ok: false, message: serverT('api.mbwayBelowMin'), payload: null }
+    }
+
+    // Official webapp: IdWalletUser + IdInstitution + IdEnumChannel + Amount + Phone
     const envelope = await schoolCall(state.serviceUrl, 'SET_WalletLoadMBWay', {
-      IdUser: idUser,
-      IdProject: state.user.IdProject,
-      IdSchoolYear: state.user.IdSchoolYear,
-      Value: amount,
-      PhoneNumber: payload.telemovel || '',
-      Amount: amount
+      IdWalletUser: context.idWallet,
+      IdInstitution: context.idInstitution,
+      IdEnumChannel: WalletPaymentMethod.MBWay,
+      Amount: amount,
+      Phone: phone
     }, state.authToken)
+
+    if (envelope.ResponseCode !== SchoolResult.Success) {
+      return {
+        ok: false,
+        message: cleanMessage(envelope.ResponseMessage) || serverT('api.refused'),
+        payload: envelope.ResponseObject
+      }
+    }
+
+    const loadCode = walletLoadCode(envelope.ResponseObject)
     return {
-      ok: envelope.ResponseCode === 1,
-      message: cleanMessage(envelope.ResponseMessage),
+      ok: loadCode === 0,
+      message: loadCode === 0
+        ? cleanMessage(envelope.ResponseMessage) || serverT('module.topUpSent')
+        : mbwayLoadMessage(loadCode),
       payload: envelope.ResponseObject
     }
   }
 
+  const email = String(payload.email || state.user.UserExtra?.Email || '').trim()
+  if (!email) {
+    return { ok: false, message: serverT('api.email'), payload: null }
+  }
+
+  const payshop = method === 'payshop'
+  // Official webapp emails the existing Multibanco/Payshop reference (no amount field).
   const envelope = await schoolCall(state.serviceUrl, 'SET_SendEmailReference', {
+    Email: email,
+    CONF_CODE: payshop ? 'EMAIL_PAYSHOP_REFERENCE' : 'EMAIL_ATM_REFERENCE',
+    Entity: payshop ? '' : (context.mbEntity || ''),
+    Reference: payshop ? (context.payshopReference || '') : (context.mbReference || ''),
     IdUser: idUser,
-    IdProject: state.user.IdProject,
-    IdSchoolYear: state.user.IdSchoolYear,
-    Value: amount,
-    Email: payload.email || state.user.UserExtra?.Email || '',
-    PaymentMethod: method === 'payshop' ? 'Payshop' : 'Multibanco'
+    IdEnumPaymentMethod: payshop ? WalletPaymentMethod.Payshop : WalletPaymentMethod.Multibanco
   }, state.authToken)
   return {
-    ok: envelope.ResponseCode === 1,
+    ok: envelope.ResponseCode === SchoolResult.Success,
     message: cleanMessage(envelope.ResponseMessage),
     payload: envelope.ResponseObject
+  }
+}
+
+async function walletTopUpContext(state: PortalState, idUser: number) {
+  const [accountsEnvelope, walletUserEnvelope] = await Promise.all([
+    schoolCall(state.serviceUrl, 'GET_WalletAccountCollection', {
+      IdUser: idUser,
+      UserToken: ''
+    }, state.authToken),
+    schoolCall(state.serviceUrl, 'GET_UserWalletCreate', {
+      IdUser: idUser,
+      UserToken: ''
+    }, state.authToken)
+  ])
+
+  if (!schoolOk(accountsEnvelope) || !schoolOk(walletUserEnvelope)) return null
+
+  const account = firstWalletAccount(accountsEnvelope.ResponseObject)
+  const walletUser = walletUserEnvelope.ResponseObject && typeof walletUserEnvelope.ResponseObject === 'object'
+    ? walletUserEnvelope.ResponseObject as Record<string, unknown>
+    : null
+  const idWallet = Number(account?.IdWallet)
+  const idInstitution = Number(walletUser?.IdWalletInstitution)
+  if (!idWallet || !idInstitution || !walletUser?.Id) return null
+
+  const minMBWay = Number(account?.MinimumMBWayLoad)
+  return {
+    idWallet,
+    idInstitution,
+    mbEntity: account?.MBEntity != null ? String(account.MBEntity) : '',
+    mbReference: account?.MBReference != null ? String(account.MBReference) : '',
+    payshopReference: account?.PayShopReference != null ? String(account.PayShopReference) : '',
+    minimumMBWayLoad: Number.isFinite(minMBWay) && minMBWay > 0 ? minMBWay : null
+  }
+}
+
+function firstWalletAccount(payload: unknown): Record<string, unknown> | null {
+  if (Array.isArray(payload)) {
+    const first = payload.find(item => item && typeof item === 'object' && !Array.isArray(item))
+    return first ? first as Record<string, unknown> : null
+  }
+  if (payload && typeof payload === 'object') {
+    const record = payload as Record<string, unknown>
+    for (const key of ['AccountCollection', 'Accounts', 'Items', 'List']) {
+      const nested = firstWalletAccount(record[key])
+      if (nested) return nested
+    }
+    if (record.IdWallet != null) return record
+  }
+  return null
+}
+
+function walletLoadCode(responseObject: unknown) {
+  try {
+    const parsed = typeof responseObject === 'string'
+      ? JSON.parse(responseObject) as { WalletLoadCode?: number }
+      : responseObject && typeof responseObject === 'object'
+        ? responseObject as { WalletLoadCode?: number }
+        : null
+    return Number(parsed?.WalletLoadCode)
+  }
+  catch {
+    return NaN
+  }
+}
+
+function mbwayLoadMessage(code: number) {
+  switch (code) {
+    case 1: return serverT('api.mbwayMonthLimit')
+    case 2: return serverT('api.mbwayInvalidPhone')
+    case 3: return serverT('api.mbwayMissing')
+    case 4: return serverT('api.mbwayInactive')
+    case 5: return serverT('api.mbwayProvider')
+    case 6: return serverT('api.mbwayAboveMax')
+    case 7: return serverT('api.mbwayBelowMin')
+    default: return serverT('module.topUpRejected')
   }
 }
 

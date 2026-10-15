@@ -32,7 +32,14 @@ export const en = {
     session: 'Session key missing on the Worker. Set NUXT_SESSION_PASSWORD (≥32 chars) in Cloudflare → this Worker → Settings → Variables and Secrets (not only local .env).',
     sigaDown: 'SIGA did not respond.',
     portalOpen: 'Could not open the school portal.',
-    needWallet: 'Create the digital school card before topping up.'
+    needWallet: 'Create the digital school card before topping up.',
+    mbwayInvalidPhone: 'The MB WAY phone number is not valid.',
+    mbwayMissing: 'No MB WAY account was found for this number.',
+    mbwayInactive: 'The wallet is not active for MB WAY top-ups.',
+    mbwayProvider: 'MB WAY could not complete the request. Try again later.',
+    mbwayMonthLimit: 'This top-up exceeds the monthly limit.',
+    mbwayAboveMax: 'This amount is above the maximum allowed.',
+    mbwayBelowMin: 'This amount is below the minimum for MB WAY.'
   },
   brand: {
     role: 'Parent'
@@ -182,7 +189,8 @@ export const en = {
     dietNormal: 'Normal',
     dietVegetarian: 'Vegetarian',
     dietShortNormal: 'Norm.',
-    dietShortVegetarian: 'Veg.'
+    dietShortVegetarian: 'Veg.',
+    limitReached: 'The school meal booking limit for this period was reached.'
   },
   meals: {
     breakfast: 'Breakfast',
@@ -208,10 +216,10 @@ export const en = {
   topup: {
     title: 'Top up the card',
     action: 'Top up',
-    hint: 'The request goes to the school portal. Multibanco and Payshop send the reference by email.',
+    hint: 'MB WAY asks for confirmation on your phone. Multibanco and Payshop email the payment reference (no amount needed here).',
     method: 'Method',
     amount: 'Amount',
-    phone: 'Mobile',
+    phone: 'Mobile (MB WAY)',
     email: 'Email for the reference',
     submit: 'Send request'
   },

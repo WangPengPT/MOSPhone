@@ -214,6 +214,7 @@ async function saveBookings(payload: {
           studentId: studentId.value || bookings.value?.studentId,
           subUnitId: bookingSubUnitId.value || bookings.value?.selectedSubUnitId,
           userPick: bookings.value?.userPick || null,
+          plates: bookings.value?.plates || [],
           picks: payload.picks
         }
       }

@@ -34,7 +34,14 @@ export const pt = {
     session: 'Falta a chave de sessão no Worker. Defina NUXT_SESSION_PASSWORD (≥32) em Cloudflare → este Worker → Settings → Variables and Secrets (o .env local não serve para a app).',
     sigaDown: 'O SIGA não respondeu.',
     portalOpen: 'Não foi possível abrir o portal da escola.',
-    needWallet: 'Crie o cartão escolar digital antes de carregar saldo.'
+    needWallet: 'Crie o cartão escolar digital antes de carregar saldo.',
+    mbwayInvalidPhone: 'O número de telemóvel MB WAY não é válido.',
+    mbwayMissing: 'Não foi encontrada conta MB WAY para este número.',
+    mbwayInactive: 'A carteira não está ativa para carregamentos MB WAY.',
+    mbwayProvider: 'O MB WAY não concluiu o pedido. Tente mais tarde.',
+    mbwayMonthLimit: 'Este carregamento ultrapassa o limite mensal.',
+    mbwayAboveMax: 'O montante está acima do máximo permitido.',
+    mbwayBelowMin: 'O montante está abaixo do mínimo para MB WAY.'
   },
   brand: {
     role: 'Encarregado de educação'
@@ -184,7 +191,8 @@ export const pt = {
     dietNormal: 'Normal',
     dietVegetarian: 'Vegetariano',
     dietShortNormal: 'Norm.',
-    dietShortVegetarian: 'Veg.'
+    dietShortVegetarian: 'Veg.',
+    limitReached: 'Foi atingido o limite de marcações da escola neste período.'
   },
   meals: {
     breakfast: 'Pequeno-almoço',
@@ -210,10 +218,10 @@ export const pt = {
   topup: {
     title: 'Carregar cartão',
     action: 'Carregar',
-    hint: 'O pedido segue para o portal da escola. Multibanco e Payshop enviam a referência por email.',
+    hint: 'O MB WAY pede confirmação no telemóvel. Multibanco e Payshop enviam a referência por email (não é preciso indicar montante aqui).',
     method: 'Meio',
     amount: 'Montante',
-    phone: 'Telemóvel',
+    phone: 'Telemóvel (MB WAY)',
     email: 'Email para a referência',
     submit: 'Enviar pedido'
   },
