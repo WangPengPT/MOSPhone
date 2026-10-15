@@ -25,7 +25,7 @@ function shortOf(code: unknown) {
   <USelect
     v-model="selected"
     :items="items"
-    size="xs"
+    size="sm"
     variant="ghost"
     trailing-icon="i-lucide-chevron-down"
     class="w-auto min-w-0 shrink-0"

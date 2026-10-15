@@ -193,25 +193,27 @@ function studentMeta(student: Student | null | undefined) {
     </section>
 
     <section class="surface rounded-2xl px-4 py-5 sm:px-5 sm:py-6">
-      <div class="flex min-w-0 flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-        <div class="min-w-0">
+      <div class="flex min-w-0 items-start justify-between gap-3">
+        <div class="min-w-0 flex-1">
           <p class="text-sm ink-soft">{{ t('panel.balance') }}</p>
           <p class="mt-2 break-all font-display text-4xl leading-none tracking-[-0.03em] sm:text-5xl">
             {{ panel.available != null || panel.balance != null ? formatMoney(panel.available ?? panel.balance) : '—' }}
           </p>
         </div>
-        <div class="flex flex-wrap gap-2 sm:shrink-0 sm:flex-col sm:items-end">
+        <div class="flex shrink-0 flex-col items-stretch gap-2">
           <UButton
             v-if="canTopUp"
             color="primary"
-            size="md"
+            size="sm"
+            class="justify-center"
             :label="t('topup.action')"
             @click="emit('topup')"
           />
           <UButton
             v-else-if="panel.canCreateWallet"
             color="primary"
-            size="md"
+            size="sm"
+            class="justify-center"
             :label="t('walletCreate.action')"
             @click="emit('create-wallet')"
           />

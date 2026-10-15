@@ -48,8 +48,12 @@ function studentShortById(id: unknown) {
   return student ? shortName(studentDisplayName(student)) : ''
 }
 const current = computed(() => portalModules.find(item => item.to === route.path) ?? portalModules[0])
-const tabs = computed(() => portalModules.filter(item => primaryNav.includes(item.key as typeof primaryNav[number])))
-/** All modules not on the bottom bar (bookings, card, menus, …). */
+const tabs = computed(() =>
+  primaryNav
+    .map(key => portalModules.find(item => item.key === key))
+    .filter((item): item is (typeof portalModules)[number] => Boolean(item))
+)
+/** All modules not on the bottom bar (menus, profile, …). */
 const extra = computed(() => portalModules.filter(item => !primaryNav.includes(item.key as typeof primaryNav[number])))
 const schoolLabel = computed(() => {
   const host = data.value?.portalHost || ''
@@ -125,7 +129,7 @@ function active(to: string) {
             v-if="studentItems.length > 1"
             v-model="studentId"
             :items="studentItems"
-            size="xs"
+            size="sm"
             class="w-auto max-w-[7.5rem] shrink-0"
             :ui="{
               base: 'px-2 gap-1',
