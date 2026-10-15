@@ -19,6 +19,33 @@ function cookieBase(event?: H3Event) {
   }
 }
 
+/** Prefer runtime env (Cloudflare Worker secrets) over build-time empty defaults. */
+export function readSessionPassword() {
+  const config = useRuntimeConfig()
+  const candidates = [
+    config.sessionPassword,
+    process.env.NUXT_SESSION_PASSWORD,
+    process.env.SESSION_PASSWORD
+  ]
+  for (const value of candidates) {
+    const text = String(value || '').trim()
+    if (text.length >= 32) return text
+  }
+  return String(config.sessionPassword || process.env.NUXT_SESSION_PASSWORD || '').trim()
+}
+
+export function sessionReady() {
+  return readSessionPassword().length >= 32
+}
+
+export function assertSessionPassword(event?: H3Event) {
+  if (sessionReady()) return
+  throw createError({
+    statusCode: 500,
+    statusMessage: serverT('api.session', event)
+  })
+}
+
 export function setRemember(event: H3Event, remember: boolean) {
   if (remember) {
     setCookie(event, REMEMBER_COOKIE, '1', { ...cookieBase(event), maxAge: REMEMBER_MAX_AGE })
@@ -28,14 +55,8 @@ export function setRemember(event: H3Event, remember: boolean) {
 }
 
 export function openSession(event: H3Event) {
-  const password = String(useRuntimeConfig().sessionPassword || '')
-  if (password.length < 32) {
-    throw createError({
-      statusCode: 500,
-      statusMessage: serverT('api.session', event)
-    })
-  }
-
+  assertSessionPassword(event)
+  const password = readSessionPassword()
   const maxAge = getCookie(event, REMEMBER_COOKIE) === '1' ? REMEMBER_MAX_AGE : SESSION_MAX_AGE
   return useSession<SigaSession>(event, {
     password,

@@ -9,6 +9,7 @@ const toast = useToast()
 const { t } = useAppI18n()
 const saving = ref(false)
 const topupOpen = ref(false)
+const createWalletOpen = ref(false)
 const noteKey = ref('')
 const noteText = ref('')
 const note = computed(() => noteText.value || (noteKey.value ? t(noteKey.value) : ''))
@@ -247,6 +248,47 @@ async function topUp(payload: { metodo: string, valor: number, email?: string, t
     saving.value = false
   }
 }
+
+async function createWallet(payload: Record<string, unknown>) {
+  saving.value = true
+  noteKey.value = ''
+  noteText.value = ''
+  try {
+    const result = await $fetch('/api/portal/action', {
+      method: 'POST',
+      body: {
+        module: 'cartao',
+        payload: {
+          ...payload,
+          action: 'createWallet',
+          studentId: studentId.value || undefined
+        }
+      }
+    })
+    if (result.message) noteText.value = result.message
+    else noteKey.value = result.ok ? 'walletCreate.created' : 'walletCreate.rejected'
+    if (result.ok) {
+      toast.add({ title: t('walletCreate.created'), description: note.value })
+      createWalletOpen.value = false
+      await refresh()
+    }
+    else {
+      toast.add({
+        title: t('walletCreate.rejected'),
+        description: note.value || result.message || t('walletCreate.rejected'),
+        color: 'error'
+      })
+    }
+  }
+  catch (reason) {
+    noteText.value = errorText(reason)
+  }
+  finally {
+    saving.value = false
+  }
+}
+
+const walletPanel = computed(() => panel.value?.kind === 'wallet' ? panel.value : null)
 </script>
 
 <template>
@@ -293,12 +335,24 @@ async function topUp(payload: { metodo: string, valor: number, email?: string, t
         :can-top-up="(module === 'cartao' || module === 'inicio') && data?.canTopUp"
         :loading-sections="loadingSections"
         @topup="topupOpen = true"
+        @create-wallet="createWalletOpen = true"
         @load-section="loadSection"
       />
 
       <UModal v-model:open="topupOpen" :title="t('topup.title')">
         <template #body>
           <TopUpForm :saving="saving" @submit="topUp" />
+        </template>
+      </UModal>
+
+      <UModal v-model:open="createWalletOpen" :title="t('walletCreate.title')">
+        <template #body>
+          <CreateWalletForm
+            :saving="saving"
+            :draft="walletPanel?.createDraft || null"
+            :echelon-options="walletPanel?.echelonOptions || []"
+            @submit="createWallet"
+          />
         </template>
       </UModal>
 

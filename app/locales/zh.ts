@@ -31,9 +31,10 @@ export const zh = {
     refused: '门户拒绝了这个请求。',
     unreachable: '无法联系学校门户。',
     redirect: '学校门户没有完成跳转。',
-    session: '请在 .env 中设置 NUXT_SESSION_PASSWORD，至少 32 个字符。',
+    session: '服务器未配置登录会话密钥。本地请在 .env 设置 NUXT_SESSION_PASSWORD（至少 32 字符）；手机 App 访问的是线上 Worker，请在 Cloudflare 该 Worker 的环境变量/Secrets 中配置同名项。',
     sigaDown: 'SIGA 没有响应。',
-    portalOpen: '无法打开学校门户。'
+    portalOpen: '无法打开学校门户。',
+    needWallet: '需要先创建数字校园卡，才能充值。'
   },
   brand: {
     role: '家长'
@@ -206,6 +207,32 @@ export const zh = {
     phone: '手机',
     email: '接收参考号的邮箱',
     submit: '发送请求'
+  },
+  walletCreate: {
+    title: '创建数字校园卡',
+    action: '创建数字卡',
+    needed: '这个学生还没有数字校园卡，创建后才能充值。',
+    blocked: '当前账户状态不允许创建或充值（可能已关闭、暂停或正在销户）。',
+    unavailable: '学校未开通数字校园卡，或该学生暂不可创建。',
+    terms: '我已阅读并同意学校校园卡使用条款。',
+    eeName: '家长姓名',
+    eeDocType: '证件类型',
+    eeDocNumber: '证件号码',
+    eeExpiry: '证件有效期',
+    eeNif: '家长税号 (NIF)',
+    eeAddress: '地址',
+    eePostal: '邮编前 4 位',
+    eePostalExt: '邮编后 3 位',
+    eeCity: '城市',
+    eeEmail: '邮箱',
+    studentName: '学生姓名',
+    studentBirth: '学生出生日期',
+    studentNif: '学生税号',
+    studentEchelon: '阶梯 / Escalão',
+    dateHint: '格式 DD-MM-YYYY',
+    submit: '创建校园卡',
+    created: '数字校园卡已创建。',
+    rejected: '学校没有接受这次开卡请求。'
   },
   data: {
     more: '再显示 {count} 条',

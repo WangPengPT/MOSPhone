@@ -50,6 +50,26 @@ type Panel =
       reserved?: number | string | null
       credit?: number | string | null
       hasWallet?: boolean | null
+      canCreateWallet?: boolean | null
+      accountBlocked?: boolean | null
+      createDraft?: {
+        studentName?: string | null
+        studentBirthDate?: string | null
+        studentNif?: string | null
+        studentEchelon?: number | null
+        eeName?: string | null
+        eeDocumentType?: number | null
+        eeDocNumber?: string | null
+        eeNif?: string | null
+        eeAddress?: string | null
+        eePostalCode?: string | null
+        eePostalExt?: string | null
+        eeCity?: string | null
+        eeExpiryDate?: string | null
+        eeEmail?: string | null
+        documentTypeList?: Array<{ value: number | string, label: string }>
+      } | null
+      echelonOptions?: Array<{ value: number | string, label: string }>
       cards?: Array<{
         id: string
         name?: string | null
@@ -80,6 +100,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   topup: []
+  'create-wallet': []
   'load-section': [section: WalletSection]
 }>()
 
@@ -175,15 +196,26 @@ function studentMeta(student: Student | null | undefined) {
             {{ panel.available != null || panel.balance != null ? formatMoney(panel.available ?? panel.balance) : '—' }}
           </p>
         </div>
-        <UButton
-          v-if="canTopUp"
-          color="primary"
-          size="md"
-          class="shrink-0"
-          :label="t('topup.action')"
-          @click="emit('topup')"
-        />
+        <div class="flex shrink-0 flex-col items-end gap-2">
+          <UButton
+            v-if="canTopUp && panel.hasWallet !== false"
+            color="primary"
+            size="md"
+            :label="t('topup.action')"
+            @click="emit('topup')"
+          />
+          <UButton
+            v-else-if="panel.canCreateWallet"
+            color="primary"
+            size="md"
+            :label="t('walletCreate.action')"
+            @click="emit('create-wallet')"
+          />
+        </div>
       </div>
+      <p v-if="panel.accountBlocked" class="mt-4 text-sm text-amber-800">{{ t('walletCreate.blocked') }}</p>
+      <p v-else-if="panel.hasWallet === false && panel.canCreateWallet" class="mt-4 text-sm ink-soft">{{ t('walletCreate.needed') }}</p>
+      <p v-else-if="panel.hasWallet === false && panel.canCreateWallet === false" class="mt-4 text-sm ink-soft">{{ t('walletCreate.unavailable') }}</p>
       <div v-if="panel.reserved != null || panel.credit != null" class="mt-5 grid grid-cols-2 gap-4">
         <div v-if="panel.reserved != null">
           <p class="text-xs ink-soft">{{ t('panel.reserved') }}</p>

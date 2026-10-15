@@ -21,8 +21,12 @@ import {
   asMenus,
   asProfile,
   asWallet,
+  asWalletCreateDraft,
+  asWalletEchelons,
+  accountCollectionBlocked,
   formatPortalDay,
-  normalizeStudents
+  normalizeStudents,
+  walletAllowsTopUp
 } from './views'
 
 interface PortalState {
@@ -197,6 +201,8 @@ export async function postModule(
   }
 
   if (moduleKey === 'cartao') {
+    const payload = body && typeof body === 'object' ? body as { action?: string } : {}
+    if (payload.action === 'createWallet') return createDigitalWallet(state, body)
     return topUpWallet(state, body)
   }
 
@@ -277,17 +283,31 @@ async function readHome(state: PortalState, studentId?: string | null): Promise<
     schoolYear: state.user.SchoolYearDescription || null
   }
 
+  const focusPayload = focusBalance && schoolOk(focusBalance) ? focusBalance.ResponseObject : null
+  const homeHasWallet = (() => {
+    if (!focusPayload || typeof focusPayload !== 'object') return null
+    const record = focusPayload as Record<string, unknown>
+    const nested = record.Balance && typeof record.Balance === 'object' && !Array.isArray(record.Balance)
+      ? record.Balance as Record<string, unknown>
+      : record
+    return typeof nested.HasWallet === 'boolean'
+      ? nested.HasWallet
+      : typeof record.HasWallet === 'boolean'
+        ? record.HasWallet
+        : null
+  })()
+
   return {
     ok: true,
     payload: asHome({
       profile,
       focusStudentId: focusId,
-      focusBalance: focusBalance && schoolOk(focusBalance) ? focusBalance.ResponseObject : null,
+      focusBalance: focusPayload,
       booking: null,
       alerts: []
     }),
     source: forChild ? 'SIGAService2020/GET_WalletBalanceByUser' : 'SIGAService2020/GET_WalletBalance',
-    canTopUp: true,
+    canTopUp: walletAllowsTopUp({ hasWallet: homeHasWallet }),
     canSaveDays: true
   }
 }
@@ -343,7 +363,7 @@ async function readWallet(
       }),
       message: firstMessage(fallback),
       source: 'SIGAService2020/GET_WalletMovementsCollectionSIGA',
-      canTopUp: true,
+      canTopUp: false,
       canSaveDays: false
     }
   }
@@ -373,7 +393,7 @@ async function readWallet(
       }),
       message: firstMessage(walletUser, accounts, wallets),
       source: 'SIGAService2020/GET_UserWalletCreate',
-      canTopUp: true,
+      canTopUp: false,
       canSaveDays: false
     }
   }
@@ -391,7 +411,7 @@ async function readWallet(
       }),
       message: firstMessage(units),
       source: 'SIGAService2020/GET_WalletUnits_ByUser',
-      canTopUp: true,
+      canTopUp: false,
       canSaveDays: false
     }
   }
@@ -414,15 +434,94 @@ async function readWallet(
         IdSchoolYear: state.user.IdSchoolYear
       }, state.authToken)
 
+  const balancePayload = schoolOk(balance) ? balance.ResponseObject : null
+  const walletMeta = await loadWalletMeta(state, idUser, balancePayload)
+
   return {
     ok: true,
     payload: asWallet({
-      balance: schoolOk(balance) ? balance.ResponseObject : null
+      balance: balancePayload,
+      student: null,
+      hasWallet: walletMeta.hasWallet,
+      canCreateWallet: walletMeta.canCreateWallet,
+      createDraft: walletMeta.createDraft,
+      echelonOptions: walletMeta.echelonOptions,
+      accountState: walletMeta.accountState,
+      accountBlocked: walletMeta.accountBlocked
     }),
-    message: firstMessage(balance),
+    message: firstMessage(balance) || walletMeta.message,
     source: forChild ? 'SIGAService2020/GET_WalletBalanceByUser' : 'SIGAService2020/GET_WalletBalance',
-    canTopUp: true,
+    canTopUp: walletMeta.canTopUp,
     canSaveDays: false
+  }
+}
+
+async function loadWalletMeta(
+  state: PortalState,
+  idUser: number,
+  balancePayload: unknown
+) {
+  const hasWalletFromBalance = (() => {
+    if (!balancePayload || typeof balancePayload !== 'object') return null
+    const record = balancePayload as Record<string, unknown>
+    const nested = record.Balance && typeof record.Balance === 'object' && !Array.isArray(record.Balance)
+      ? record.Balance as Record<string, unknown>
+      : record
+    return typeof nested.HasWallet === 'boolean'
+      ? nested.HasWallet
+      : typeof record.HasWallet === 'boolean'
+        ? record.HasWallet
+        : null
+  })()
+
+  const [walletUser, accounts, canCreate, echelons] = await Promise.all([
+    schoolCall(state.serviceUrl, 'GET_UserWalletCreate', {
+      IdUser: idUser,
+      UserToken: ''
+    }, state.authToken).catch(() => null),
+    schoolCall(state.serviceUrl, 'GET_WalletAccountCollection', {
+      IdUser: idUser,
+      UserToken: ''
+    }, state.authToken).catch(() => null),
+    // SIGA may accept bare IdUser or { IdUser }.
+    schoolCall(state.serviceUrl, 'GET_CanCreateWallet', idUser, state.authToken)
+      .catch(() => schoolCall(state.serviceUrl, 'GET_CanCreateWallet', { IdUser: idUser }, state.authToken))
+      .catch(() => null),
+    schoolCall(state.serviceUrl, 'GET_WalletEchelonEnum', {}, state.authToken).catch(() => null)
+  ])
+
+  const draft = walletUser && schoolOk(walletUser) ? asWalletCreateDraft(walletUser.ResponseObject) : null
+  const blocked = accounts && schoolOk(accounts) ? accountCollectionBlocked(accounts.ResponseObject) : false
+  const canCreateWallet = (() => {
+    if (blocked) return false
+    if (canCreate && schoolOk(canCreate) && typeof canCreate.ResponseObject === 'boolean') {
+      return canCreate.ResponseObject
+    }
+    if (hasWalletFromBalance === true || (draft?.id != null && draft.id > 0)) return false
+    return hasWalletFromBalance === false
+  })()
+
+  const hasWallet = hasWalletFromBalance === true || (draft?.id != null && Number(draft.id) > 0)
+  const accountState = draft?.idEnumAccountState ?? null
+  const canTopUp = walletAllowsTopUp({
+    hasWallet,
+    accountState,
+    accountBlocked: blocked
+  })
+
+  return {
+    hasWallet,
+    canCreateWallet,
+    createDraft: draft,
+    echelonOptions: echelons && schoolOk(echelons) ? asWalletEchelons(echelons.ResponseObject) : [],
+    accountState,
+    accountBlocked: blocked,
+    canTopUp,
+    message: firstMessage(
+      ...(walletUser ? [walletUser] : []),
+      ...(accounts ? [accounts] : []),
+      ...(canCreate ? [canCreate] : [])
+    )
   }
 }
 
@@ -954,6 +1053,84 @@ async function readGate(state: PortalState, studentId?: string | null): Promise<
   }
 }
 
+async function createDigitalWallet(state: PortalState, body: unknown) {
+  const payload = (body && typeof body === 'object' ? body : {}) as Record<string, unknown>
+  const idUser = payload.studentId ? Number(payload.studentId) || state.user.IdUser || 0 : state.user.IdUser || 0
+  if (!idUser) return { ok: false, message: serverT('api.incomplete'), payload: null }
+
+  const accepted = payload.acceptedTerms === true
+  if (!accepted) {
+    return { ok: false, message: serverT('api.incomplete'), payload: null }
+  }
+
+  const draftEnvelope = await schoolCall(state.serviceUrl, 'GET_UserWalletCreate', {
+    IdUser: idUser,
+    UserToken: ''
+  }, state.authToken)
+  if (!schoolOk(draftEnvelope) || !draftEnvelope.ResponseObject) {
+    return {
+      ok: false,
+      message: cleanMessage(draftEnvelope.ResponseMessage) || serverT('api.portalHidden'),
+      payload: null
+    }
+  }
+
+  const draft = asWalletCreateDraft(draftEnvelope.ResponseObject)
+  const base = draftEnvelope.ResponseObject as Record<string, unknown>
+  const studentName = String(payload.studentName || draft?.studentName || '').trim()
+  const eeName = String(payload.eeName || draft?.eeName || '').trim()
+  const eeNif = String(payload.eeNif || draft?.eeNif || '').replace(/\s/g, '')
+  const eeDocNumber = String(payload.eeDocNumber || draft?.eeDocNumber || '').trim()
+  const email = String(payload.eeEmail || draft?.eeEmail || state.user.UserExtra?.Email || '').trim()
+  if (!studentName || !eeName || !eeNif || !eeDocNumber || !email) {
+    return { ok: false, message: serverT('api.incomplete'), payload: null }
+  }
+
+  const walletUser = {
+    ...base,
+    Id: draft?.id ?? base.Id ?? 0,
+    IdUser: draft?.idUser ?? idUser,
+    IdUserSIGA: draft?.idUserSiga ?? base.IdUserSIGA ?? 0,
+    UserSIGAName: draft?.userSigaName || studentName,
+    IdWalletCorporateInstitution: draft?.idWalletCorporateInstitution ?? base.IdWalletCorporateInstitution ?? 0,
+    IdWalletInstitution: draft?.idWalletInstitution ?? base.IdWalletInstitution ?? 0,
+    IdEnumAccountState: draft?.idEnumAccountState ?? base.IdEnumAccountState ?? 0,
+    IdEnumAccountType: draft?.idEnumAccountType ?? base.IdEnumAccountType ?? 0,
+    DocumentTypeList: base.DocumentTypeList || [],
+    CanRequestClose: false,
+    DateCreate: '',
+    HasCloseRequest: false,
+    User: {
+      Name: studentName,
+      BirthDate: String(payload.studentBirthDate || draft?.studentBirthDate || ''),
+      VatNumber: String(payload.studentNif || draft?.studentNif || '999999990').replace(/\s/g, '') || '999999990',
+      IdEnumEchelon: Number(payload.studentEchelon ?? draft?.studentEchelon ?? 0) || 0,
+      SchoolGrade: '',
+      SchoolClass: ''
+    },
+    EducationCharge: {
+      IdUserSIGA: draft?.idUserSiga ?? 0,
+      Name: eeName,
+      IdEnumDocumentType: Number(payload.eeDocumentType ?? draft?.eeDocumentType ?? 2) || 2,
+      DocNumber: eeDocNumber,
+      VatNumber: eeNif,
+      Address: String(payload.eeAddress || draft?.eeAddress || ''),
+      PostalCode: String(payload.eePostalCode || draft?.eePostalCode || ''),
+      PostalCodeExtension: String(payload.eePostalExt || draft?.eePostalExt || ''),
+      City: String(payload.eeCity || draft?.eeCity || ''),
+      ExpiryDate: String(payload.eeExpiryDate || draft?.eeExpiryDate || ''),
+      Email: email
+    }
+  }
+
+  const envelope = await schoolCall(state.serviceUrl, 'SET_WalletUser', walletUser, state.authToken)
+  return {
+    ok: envelope.ResponseCode === 1,
+    message: cleanMessage(envelope.ResponseMessage),
+    payload: envelope.ResponseObject
+  }
+}
+
 async function topUpWallet(state: PortalState, body: unknown) {
   const payload = (body && typeof body === 'object' ? body : {}) as {
     metodo?: string
@@ -968,6 +1145,25 @@ async function topUpWallet(state: PortalState, body: unknown) {
   }
 
   const idUser = payload.studentId ? Number(payload.studentId) || state.user.IdUser : state.user.IdUser
+  const balance = await schoolCall(state.serviceUrl, 'GET_WalletBalanceByUser', {
+    IdUser: idUser,
+    IdProject: state.user.IdProject,
+    IdSchoolYear: state.user.IdSchoolYear,
+    IdUserType: state.user.IdUserType
+  }, state.authToken).catch(() => null)
+  const balancePayload = balance && schoolOk(balance) ? balance.ResponseObject : null
+  const hasWallet = (() => {
+    if (!balancePayload || typeof balancePayload !== 'object') return null
+    const record = balancePayload as Record<string, unknown>
+    const nested = record.Balance && typeof record.Balance === 'object' && !Array.isArray(record.Balance)
+      ? record.Balance as Record<string, unknown>
+      : record
+    return typeof nested.HasWallet === 'boolean' ? nested.HasWallet : typeof record.HasWallet === 'boolean' ? record.HasWallet : null
+  })()
+  if (hasWallet !== true) {
+    return { ok: false, message: serverT('api.needWallet'), payload: null }
+  }
+
   const method = String(payload.metodo || 'mbway').toLowerCase()
   if (method === 'mbway') {
     const envelope = await schoolCall(state.serviceUrl, 'SET_WalletLoadMBWay', {

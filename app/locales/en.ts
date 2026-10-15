@@ -29,9 +29,10 @@ export const en = {
     refused: 'The portal refused the request.',
     unreachable: 'Could not reach the school portal.',
     redirect: 'The school portal did not finish the redirect.',
-    session: 'Set NUXT_SESSION_PASSWORD in the .env file, with at least 32 characters.',
+    session: 'Session key missing on the server. Locally set NUXT_SESSION_PASSWORD in .env (≥32 chars). The Android app uses the online Worker — set the same variable in that Cloudflare Worker’s Secrets.',
     sigaDown: 'SIGA did not respond.',
-    portalOpen: 'Could not open the school portal.'
+    portalOpen: 'Could not open the school portal.',
+    needWallet: 'Create the digital school card before topping up.'
   },
   brand: {
     role: 'Parent'
@@ -204,6 +205,32 @@ export const en = {
     phone: 'Mobile',
     email: 'Email for the reference',
     submit: 'Send request'
+  },
+  walletCreate: {
+    title: 'Create digital school card',
+    action: 'Create card',
+    needed: 'This student has no digital school card yet. Create one before topping up.',
+    blocked: 'This account cannot create or top up right now (closed, suspended, or close requested).',
+    unavailable: 'The school does not allow creating a digital card for this student.',
+    terms: 'I have read and accept the school card terms.',
+    eeName: 'Parent name',
+    eeDocType: 'Document type',
+    eeDocNumber: 'Document number',
+    eeExpiry: 'Document expiry',
+    eeNif: 'Parent tax ID (NIF)',
+    eeAddress: 'Address',
+    eePostal: 'Postal code (4)',
+    eePostalExt: 'Postal ext (3)',
+    eeCity: 'City',
+    eeEmail: 'Email',
+    studentName: 'Student name',
+    studentBirth: 'Student birth date',
+    studentNif: 'Student tax ID',
+    studentEchelon: 'Echelon',
+    dateHint: 'Format DD-MM-YYYY',
+    submit: 'Create school card',
+    created: 'Digital school card created.',
+    rejected: 'The school did not accept this card request.'
   },
   data: {
     more: 'Show {count} more',

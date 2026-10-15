@@ -31,9 +31,10 @@ export const pt = {
     refused: 'O portal recusou o pedido.',
     unreachable: 'Não foi possível contactar o portal da escola.',
     redirect: 'O portal da escola não concluiu o redirecionamento.',
-    session: 'Defina NUXT_SESSION_PASSWORD no ficheiro .env, com pelo menos 32 caracteres.',
+    session: 'Falta a chave de sessão no servidor. Em local, defina NUXT_SESSION_PASSWORD no .env (≥32). A app Android usa o Worker online — configure a mesma variável nos Secrets desse Worker na Cloudflare.',
     sigaDown: 'O SIGA não respondeu.',
-    portalOpen: 'Não foi possível abrir o portal da escola.'
+    portalOpen: 'Não foi possível abrir o portal da escola.',
+    needWallet: 'Crie o cartão escolar digital antes de carregar saldo.'
   },
   brand: {
     role: 'Encarregado de educação'
@@ -206,6 +207,32 @@ export const pt = {
     phone: 'Telemóvel',
     email: 'Email para a referência',
     submit: 'Enviar pedido'
+  },
+  walletCreate: {
+    title: 'Criar cartão escolar digital',
+    action: 'Criar cartão',
+    needed: 'Este educando ainda não tem cartão digital. Crie-o antes de carregar saldo.',
+    blocked: 'A conta não permite criar ou carregar agora (fechada, suspensa ou com pedido de fecho).',
+    unavailable: 'A escola não permite criar cartão digital para este educando.',
+    terms: 'Li e aceito os termos do cartão escolar.',
+    eeName: 'Nome do EE',
+    eeDocType: 'Tipo de documento',
+    eeDocNumber: 'Número do documento',
+    eeExpiry: 'Validade do documento',
+    eeNif: 'NIF do EE',
+    eeAddress: 'Morada',
+    eePostal: 'Código postal (4)',
+    eePostalExt: 'Extensão (3)',
+    eeCity: 'Localidade',
+    eeEmail: 'Email',
+    studentName: 'Nome do educando',
+    studentBirth: 'Data de nascimento',
+    studentNif: 'NIF do educando',
+    studentEchelon: 'Escalão',
+    dateHint: 'Formato DD-MM-AAAA',
+    submit: 'Criar cartão escolar',
+    created: 'Cartão escolar digital criado.',
+    rejected: 'A escola não aceitou este pedido de criação.'
   },
   data: {
     more: 'Mostrar mais {count}',

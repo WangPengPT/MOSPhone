@@ -49,6 +49,38 @@ export interface WalletCard {
   meta?: string | null
 }
 
+export interface WalletOption {
+  value: number | string
+  label: string
+}
+
+export interface WalletCreateDraft {
+  id?: number | null
+  idUser?: number | null
+  idUserSiga?: number | null
+  userSigaName?: string | null
+  idWalletCorporateInstitution?: number | null
+  idWalletInstitution?: number | null
+  idEnumAccountState?: number | null
+  idEnumAccountType?: number | null
+  documentTypeList?: WalletOption[]
+  studentName?: string | null
+  studentBirthDate?: string | null
+  studentNif?: string | null
+  studentEchelon?: number | null
+  eeName?: string | null
+  eeDocumentType?: number | null
+  eeDocNumber?: string | null
+  eeNif?: string | null
+  eeAddress?: string | null
+  eePostalCode?: string | null
+  eePostalExt?: string | null
+  eeCity?: string | null
+  eeExpiryDate?: string | null
+  eeEmail?: string | null
+  raw?: Record<string, unknown> | null
+}
+
 export interface WalletPanel {
   kind: 'wallet'
   studentName?: string | null
@@ -58,6 +90,11 @@ export interface WalletPanel {
   reserved?: number | string | null
   credit?: number | string | null
   hasWallet?: boolean | null
+  canCreateWallet?: boolean | null
+  accountState?: number | null
+  accountBlocked?: boolean | null
+  createDraft?: WalletCreateDraft | null
+  echelonOptions?: WalletOption[]
   cards: WalletCard[]
   units: PanelItem[]
   movements: PanelItem[]
@@ -205,6 +242,12 @@ export function asWallet(input: {
   wallets?: unknown
   units?: unknown
   student?: Student | null
+  hasWallet?: boolean | null
+  canCreateWallet?: boolean | null
+  createDraft?: WalletCreateDraft | null
+  echelonOptions?: WalletOption[]
+  accountState?: number | null
+  accountBlocked?: boolean | null
 }): WalletPanel {
   const fromBalance = moneyFromBalance(input.balance)
   const fromWallets = moneyFromBalance(input.wallets)
@@ -214,15 +257,21 @@ export function asWallet(input: {
   const cards = input.wallets === undefined ? [] : asCards(input.wallets, input.balance)
   const units = input.units === undefined ? [] : asItems(input.units).slice(0, 24)
   const movements = input.movements === undefined ? [] : asItems(input.movements).slice(0, 40)
+  const hasWallet = input.hasWallet ?? fromBalance.hasWallet ?? fromWallets.hasWallet
   return {
     kind: 'wallet',
-    studentName: input.student?.name || null,
+    studentName: input.student?.name || input.createDraft?.studentName || null,
     studentYear: input.student?.year || null,
     balance: available,
     available,
     reserved,
     credit,
-    hasWallet: fromBalance.hasWallet ?? fromWallets.hasWallet,
+    hasWallet,
+    canCreateWallet: input.canCreateWallet ?? null,
+    accountState: input.accountState ?? input.createDraft?.idEnumAccountState ?? null,
+    accountBlocked: input.accountBlocked ?? null,
+    createDraft: input.createDraft || null,
+    echelonOptions: input.echelonOptions || [],
     cards,
     units,
     movements,
@@ -233,6 +282,119 @@ export function asWallet(input: {
       movements: input.movements !== undefined
     }
   }
+}
+
+/** Active = 1, Suspended = 2, Closed = 3 */
+export function walletAllowsTopUp(input: {
+  hasWallet?: boolean | null
+  accountState?: number | null
+  accountBlocked?: boolean | null
+}) {
+  if (input.accountBlocked) return false
+  if (input.hasWallet !== true) return false
+  if (input.accountState == null) return true
+  return Number(input.accountState) === 1
+}
+
+export function asWalletCreateDraft(payload: unknown): WalletCreateDraft | null {
+  if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return null
+  const record = payload as Record<string, unknown>
+  const user = record.User && typeof record.User === 'object' && !Array.isArray(record.User)
+    ? record.User as Record<string, unknown>
+    : {}
+  const charge = record.EducationCharge && typeof record.EducationCharge === 'object' && !Array.isArray(record.EducationCharge)
+    ? record.EducationCharge as Record<string, unknown>
+    : {}
+  const documentTypes = Array.isArray(record.DocumentTypeList)
+    ? record.DocumentTypeList
+      .map((item) => {
+        if (!item || typeof item !== 'object') return null
+        const row = item as Record<string, unknown>
+        const value = row.Id ?? row.id ?? row.Value ?? row.value
+        const label = row.Description ?? row.description ?? row.Name ?? row.name ?? value
+        if (value == null || label == null) return null
+        return { value: value as number | string, label: String(label) }
+      })
+      .filter((item): item is WalletOption => Boolean(item))
+    : []
+
+  return {
+    id: numberOrNull(record.Id),
+    idUser: numberOrNull(record.IdUser),
+    idUserSiga: numberOrNull(record.IdUserSIGA) ?? numberOrNull(charge.IdUserSIGA),
+    userSigaName: stringOf(record.UserSIGAName),
+    idWalletCorporateInstitution: numberOrNull(record.IdWalletCorporateInstitution),
+    idWalletInstitution: numberOrNull(record.IdWalletInstitution),
+    idEnumAccountState: numberOrNull(record.IdEnumAccountState),
+    idEnumAccountType: numberOrNull(record.IdEnumAccountType),
+    documentTypeList: documentTypes,
+    studentName: stringOf(user.Name) || stringOf(record.UserSIGAName),
+    studentBirthDate: formatWalletDate(user.BirthDate),
+    studentNif: stringOf(user.VatNumber) || '999999990',
+    studentEchelon: numberOrNull(user.IdEnumEchelon),
+    eeName: stringOf(charge.Name),
+    eeDocumentType: numberOrNull(charge.IdEnumDocumentType) ?? (documentTypes[0] ? Number(documentTypes[0].value) : 2),
+    eeDocNumber: stringOf(charge.DocNumber),
+    eeNif: stringOf(charge.VatNumber),
+    eeAddress: stringOf(charge.Address),
+    eePostalCode: stringOf(charge.PostalCode),
+    eePostalExt: stringOf(charge.PostalCodeExtension),
+    eeCity: stringOf(charge.City),
+    eeExpiryDate: formatWalletDate(charge.ExpiryDate),
+    eeEmail: stringOf(charge.Email),
+    raw: record
+  }
+}
+
+export function asWalletEchelons(payload: unknown): WalletOption[] {
+  const list = firstArray(payload)
+  return list
+    .map((item) => {
+      if (item == null) return null
+      if (typeof item === 'number' || typeof item === 'string') {
+        return { value: item, label: String(item) }
+      }
+      if (typeof item !== 'object') return null
+      const row = item as Record<string, unknown>
+      const value = row.Id ?? row.id ?? row.Value ?? row.value ?? row.IdEnumEchelon
+      const label = row.Description ?? row.description ?? row.Name ?? row.name ?? value
+      if (value == null) return null
+      return { value: value as number | string, label: String(label) }
+    })
+    .filter((item): item is WalletOption => Boolean(item))
+}
+
+export function accountCollectionBlocked(payload: unknown): boolean {
+  const rows = firstArray(payload)
+  const list = rows.length ? rows : (payload && typeof payload === 'object' ? [payload] : [])
+  for (const item of list) {
+    if (!item || typeof item !== 'object') continue
+    const row = item as Record<string, unknown>
+    if (row.IsClosed === true || row.HasCloseRequest === true) return true
+    if (Number(row.IdEnumAccountState) === 2 || Number(row.IdEnumAccountState) === 3) return true
+  }
+  return false
+}
+
+function numberOrNull(value: unknown) {
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  if (typeof value === 'string' && value.trim() && !Number.isNaN(Number(value))) return Number(value)
+  return null
+}
+
+function formatWalletDate(value: unknown) {
+  if (value == null || value === '') return null
+  const raw = String(value)
+  if (/^\d{2}-\d{2}-\d{4}$/.test(raw)) return raw
+  const iso = Date.parse(raw)
+  if (!Number.isNaN(iso)) {
+    const date = new Date(iso)
+    const dd = String(date.getDate()).padStart(2, '0')
+    const mm = String(date.getMonth() + 1).padStart(2, '0')
+    const yyyy = date.getFullYear()
+    return `${dd}-${mm}-${yyyy}`
+  }
+  return raw
 }
 
 export function asProfile(user: Record<string, unknown> | null, details: unknown): ProfilePanel {
