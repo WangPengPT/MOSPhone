@@ -561,10 +561,11 @@ function confirm() {
 
     <p v-else class="text-sm ink-soft">{{ t('bookings.emptyMonth') }}</p>
 
-    <!-- Stay in-page (not body teleport) so it never overlays the More drawer. -->
+    <!-- Stay in-page (not body teleport) so it never overlays the More drawer.
+         Opaque fill — translucent + blur lets calendar cells show through (镂空). -->
     <div
       v-if="canEdit"
-      class="sticky bottom-0 z-10 mt-4 border-t border-[var(--color-line)] bg-[rgb(247_244_237_/_0.96)] px-1 py-3 backdrop-blur-md"
+      class="sticky bottom-0 z-10 -mx-3 mt-4 border-t border-[var(--color-line)] bg-paper px-4 py-3 shadow-[0_-8px_20px_rgb(247_244_237)] sm:-mx-4 sm:px-5"
     >
       <div class="flex items-center gap-3">
         <p class="min-w-0 flex-1 text-xs ink-soft">

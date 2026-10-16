@@ -591,12 +591,21 @@ function asDayBookings(
 
   const days: BookingDay[] = rows.map((row) => {
     const date = normalizeDay(row.Date) || String(row.Date || '')
-    const requisition = Number(row.Requisition ?? 0)
+    // Free / unset days arrive as -1 from CalendarGeneric.
+    const requisitionRaw = Number(row.Requisition ?? 0)
+    const requisition = requisitionRaw > 0 ? requisitionRaw : 0
     const selected = requisition === 4 || requisition === 6
+    const idRequisition = Number(row.IdRequisition)
+    const idAttendance = Number(row.IdAttendance)
+    const idPlate = Number(row.IdPlate)
+    const idSchoolRequisition = Number(row.IdSchoolRequisition)
+    const idSchoolAttendance = Number(row.IdSchoolAttendance)
     // Only invoice / explicit requisition locks block booking. Past days stay visible
     // so parents can still cancel when the portal allows it.
+    // Ignore IsRequisitionLocked on free (-1) days — SIGA marks those locked=true even when open.
     const locked = rootLocked
-      || Boolean(row.IsRequisitionLocked || row.IsRequisitionLockedByInvoice)
+      || Boolean(row.IsRequisitionLockedByInvoice)
+      || (selected && Boolean(row.IsRequisitionLocked))
     return {
       id: date,
       date,
@@ -608,18 +617,25 @@ function asDayBookings(
         selected,
         locked,
         price: (row.FamilyValue ?? row.InitialFamilyValue ?? null) as number | string | null,
-        idRequisition: row.IdRequisition != null ? Number(row.IdRequisition) : null,
+        idRequisition: idRequisition > 0 ? idRequisition : null,
         requisition,
         initialRequisition: requisition,
         raw: {
           ...row,
+          Requisition: requisition,
+          IdRequisition: idRequisition > 0 ? idRequisition : 0,
+          IdAttendance: idAttendance > 0 ? idAttendance : 0,
+          IdPlate: idPlate > 0 ? idPlate : 0,
+          IdSchoolRequisition: idSchoolRequisition > 0 ? idSchoolRequisition : 0,
+          IdSchoolAttendance: idSchoolAttendance > 0 ? idSchoolAttendance : 0,
+          Attendance: Number(row.Attendance) > 0 ? Number(row.Attendance) : 0,
           InitialRequisition: requisition,
-          InitialIdRequisition: row.IdRequisition ?? 0,
-          InitialIdAttendance: row.IdAttendance ?? 0,
-          InitialFamilyValue: row.FamilyValue ?? 0,
-          InitialIdUserEchelon: row.IdUserEchelon ?? 0,
+          InitialIdRequisition: idRequisition > 0 ? idRequisition : 0,
+          InitialIdAttendance: idAttendance > 0 ? idAttendance : 0,
+          InitialFamilyValue: typeof row.FamilyValue === 'string' ? row.FamilyValue.trim() : (row.FamilyValue ?? 0),
+          InitialIdUserEchelon: Number(row.IdUserEchelon) > 0 ? Number(row.IdUserEchelon) : 0,
           InitialEchelon: row.Echelon ?? '',
-          InitialIdPlate: row.IdPlate ?? 0
+          InitialIdPlate: idPlate > 0 ? idPlate : 0
         }
       }]
     }

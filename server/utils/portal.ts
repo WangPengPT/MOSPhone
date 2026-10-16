@@ -943,13 +943,20 @@ async function saveBookings(state: PortalState, body: unknown) {
     const defaultPlate = plateOptions.find(plate => plate.Disabled !== true && Number(plate.IdPlate ?? plate.id) > 0)
       || plateOptions.find(plate => Number(plate.IdPlate ?? plate.id) > 0)
       || null
+    // Free days come back as -1 from CalendarGeneric; treat negatives as "unset".
+    const schoolLabel = (() => {
+      const days = Array.isArray(shell.UserPickDays) ? shell.UserPickDays as Array<Record<string, unknown>> : []
+      for (const day of days) {
+        const name = String(day.SchoolRequisition || day.SchoolAttendance || '').trim()
+        if (name) return name
+      }
+      return ''
+    })()
 
     const userPickDays = picks.map((pick) => {
       const date = String(pick.date || '')
       // Official formats with dayjs `DD-MM-YYYY`.
-      const portalDate = /^\d{4}-\d{2}-\d{2}$/.test(date)
-        ? formatPortalDay(date)
-        : (/^\d{2}-\d{2}-\d{4}/.test(date) ? date.slice(0, 10) : date)
+      const portalDate = toPortalBookingDate(date) || toPortalBookingDate(String(pick.raw?.Date || ''))
       const raw = pick.raw || {}
       const initial = Number(pick.initialRequisition ?? raw.InitialRequisition ?? raw.Requisition ?? 0)
       const wasBooked = initial === 4 || initial === 6
@@ -964,36 +971,35 @@ async function saveBookings(state: PortalState, body: unknown) {
         requisition = 5
       }
 
-      let idPlate = Number(raw.IdPlate ?? raw.InitialIdPlate ?? 0)
+      let idPlate = positiveId(raw.IdPlate, positiveId(raw.InitialIdPlate, 0))
       // Official always stamps SelectedPlate.IdPlate when confirming a meal day.
-      if (pick.selected || requisition === 4 || requisition === 6) {
-        if (!(idPlate > 0) && defaultPlate) {
-          idPlate = Number(defaultPlate.IdPlate ?? defaultPlate.id ?? 0) || 0
-        }
+      if ((pick.selected || requisition === 4 || requisition === 6) && !(idPlate > 0) && defaultPlate) {
+        idPlate = positiveId(defaultPlate.IdPlate ?? defaultPlate.id, 0)
       }
 
       const familyValue = raw.InitialFamilyValue ?? raw.FamilyValue
       // Match official SetUserPickDays day shape (no PlateValue / extra period fields).
       return {
-        IdSubUnit: Number(raw.IdSubUnit ?? idSubUnit) || idSubUnit,
-        IdSchoolAttendance: Number(raw.IdSchoolAttendance ?? 0) || 0,
-        SchoolAttendance: raw.SchoolAttendance != null ? String(raw.SchoolAttendance) : '',
-        IdSchoolRequisition: Number(raw.IdSchoolRequisition || idSchool) || idSchool,
-        SchoolRequisition: raw.SchoolRequisition != null ? String(raw.SchoolRequisition) : '',
-        IdUserSchool: Number(raw.IdUserSchool ?? 0) || 0,
+        IdSubUnit: positiveId(raw.IdSubUnit, idSubUnit),
+        IdSchoolAttendance: positiveId(raw.IdSchoolAttendance, idSchool),
+        SchoolAttendance: String(raw.SchoolAttendance || schoolLabel || ''),
+        // Official sets IdSchoolRequisition = selected school when booking.
+        IdSchoolRequisition: positiveId(raw.IdSchoolRequisition, idSchool),
+        SchoolRequisition: String(raw.SchoolRequisition || schoolLabel || ''),
+        IdUserSchool: nonNegId(raw.IdUserSchool, 0),
         Date: portalDate,
-        IdRequisition: Number(raw.InitialIdRequisition ?? raw.IdRequisition ?? 0) || 0,
+        IdRequisition: nonNegId(raw.InitialIdRequisition ?? raw.IdRequisition, 0),
         Requisition: requisition,
         IsRequisitionLocked: invoiceLocked,
-        IdAttendance: Number(raw.InitialIdAttendance ?? raw.IdAttendance ?? 0) || 0,
-        Attendance: Number(raw.Attendance ?? raw.InitialAttendance ?? 0) || 0,
+        IdAttendance: nonNegId(raw.InitialIdAttendance ?? raw.IdAttendance, 0),
+        Attendance: nonNegId(raw.Attendance ?? raw.InitialAttendance, 0),
         IsAttendanceLocked: invoiceLocked,
-        IdPlate: Number.isFinite(idPlate) ? idPlate : 0,
-        IdUserEchelon: Number(raw.InitialIdUserEchelon ?? raw.IdUserEchelon ?? 0) || 0,
+        IdPlate: idPlate,
+        IdUserEchelon: nonNegId(raw.InitialIdUserEchelon ?? raw.IdUserEchelon, 0),
         Echelon: raw.InitialEchelon != null || raw.Echelon != null
-          ? String(raw.InitialEchelon ?? raw.Echelon ?? '')
+          ? String(raw.InitialEchelon ?? raw.Echelon ?? '').trim()
           : '',
-        FamilyValue: familyValue == null || familyValue === '' ? null : String(familyValue),
+        FamilyValue: familyValue == null || familyValue === '' ? null : String(familyValue).trim(),
         FineValue: Number(raw.FineValue ?? 0) || 0,
         LimitPickTime: raw.LimitPickTime != null ? String(raw.LimitPickTime) : '',
         FineStartDate: raw.FineStartDate != null ? String(raw.FineStartDate) : '',
@@ -1003,7 +1009,7 @@ async function saveBookings(state: PortalState, body: unknown) {
         IsAttendanceLockedByInvoice: Boolean(raw.IsAttendanceLockedByInvoice),
         SetRequisition: true,
         SetAttendance: false,
-        IdUser: Number(raw.IdUser ?? idUser) || idUser
+        IdUser: positiveId(raw.IdUser, idUser)
       }
     }).filter(item => item.Date)
 
@@ -1522,10 +1528,33 @@ function fineWindowStarted(fineStartDate: unknown, fineValue: unknown) {
   const raw = String(fineStartDate || '').trim()
   if (!raw) return false
   const normalized = raw
-    .replace(/^(\d{2})-(\d{2})-(\d{4})(.*)$/, '$3-$2-$1$4')
+    .replace(/^(\d{2})[-\/](\d{2})[-\/](\d{4})(.*)$/, '$3-$2-$1$4')
     .replace(' ', 'T')
   const stamp = Date.parse(normalized)
   return !Number.isNaN(stamp) && Date.now() > stamp
+}
+
+/** CalendarGeneric free days use -1 sentinels; never forward those IDs. */
+function positiveId(value: unknown, fallback = 0) {
+  const num = Number(value)
+  return Number.isFinite(num) && num > 0 ? num : fallback
+}
+
+function nonNegId(value: unknown, fallback = 0) {
+  const num = Number(value)
+  return Number.isFinite(num) && num >= 0 ? num : fallback
+}
+
+/** Official booking POST dates are DD-MM-YYYY. */
+function toPortalBookingDate(value: unknown) {
+  const raw = String(value || '').trim()
+  if (!raw) return ''
+  if (/^\d{4}-\d{2}-\d{2}/.test(raw)) return formatPortalDay(raw.slice(0, 10))
+  const dashed = raw.match(/^(\d{2})-(\d{2})-(\d{4})/)
+  if (dashed) return `${dashed[1]}-${dashed[2]}-${dashed[3]}`
+  const slashed = raw.match(/^(\d{2})\/(\d{2})\/(\d{4})/)
+  if (slashed) return `${slashed[1]}-${slashed[2]}-${slashed[3]}`
+  return ''
 }
 
 function firstMessage(...envelopes: Array<{ ResponseCode: number, ResponseMessage?: string | null }>) {
