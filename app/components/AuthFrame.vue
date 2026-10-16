@@ -29,7 +29,10 @@ const brandFirst = computed(() => !props.kicker && !props.title)
         >
           siga
         </NuxtLink>
-        <LocaleSwitch />
+        <div class="flex items-center gap-1">
+          <TextScaleSwitch />
+          <LocaleSwitch />
+        </div>
       </header>
 
       <!-- Tall viewports: stage centers the login block; short ones stay top-led. Footer stays pinned. -->

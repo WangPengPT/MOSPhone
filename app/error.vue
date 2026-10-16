@@ -18,7 +18,8 @@ function home() {
   <UApp>
     <main class="atmosphere grid min-h-dvh place-items-center px-6 text-ink">
       <div class="rise max-w-md text-center">
-        <div class="mb-8 flex justify-center">
+        <div class="mb-8 flex justify-center gap-1">
+          <TextScaleSwitch />
           <LocaleSwitch />
         </div>
         <p class="text-sm tracking-[0.08em] text-muted uppercase">{{ error.statusCode || 500 }}</p>

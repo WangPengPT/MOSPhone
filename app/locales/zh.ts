@@ -49,6 +49,13 @@ export const zh = {
   locale: {
     label: '语言'
   },
+  textScale: {
+    label: '字体大小',
+    toLarge: '切换到大字体',
+    toNormal: '切换到标准字体',
+    largeOn: '大字体：开',
+    largeOff: '大字体：关'
+  },
   auth: {
     eyebrow: '已连接 SIGA',
     headline: '孩子的学校，放在一只手就能握住的屏幕上。',
@@ -292,6 +299,8 @@ export const zh = {
     fileType: '请使用 PDF、PNG 或 JPG。',
     terms: '我确认资料正确，并接受退还条款。',
     submit: '提交退还申请',
+    close: '关闭',
+    helpClose: '知道了',
     sent: '退还申请已提交。',
     rejected: '学校没有接受这次退还申请。',
     notAllowed: '这笔充值当前不能申请退还。',

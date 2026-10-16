@@ -5,6 +5,7 @@ const route = useRoute()
 const studentId = useStudentId()
 const more = ref(false)
 const { t } = useAppI18n()
+const { isLarge, toggle: toggleTextScale } = useTextScale()
 const { refresh: runPortalRefresh, pending: refreshPending } = usePortalRefresh()
 
 const { data, pending, refresh: refreshBootstrap } = usePortalBootstrap()
@@ -165,7 +166,10 @@ function active(to: string) {
         </NuxtLink>
       </nav>
       <div class="mt-auto space-y-5">
-        <LocaleSwitch />
+        <div class="flex items-center gap-2">
+          <TextScaleSwitch />
+          <LocaleSwitch />
+        </div>
         <button
           type="button"
           class="pressable flex items-center gap-3 text-left text-sm ink-soft hover:text-ink"
@@ -191,6 +195,7 @@ function active(to: string) {
               {{ current ? t(`modules.${current.key}.label`) : t('modules.inicio.label') }}
             </h1>
           </div>
+          <TextScaleSwitch class="shrink-0 lg:hidden" />
           <LocaleSwitch class="shrink-0 lg:hidden" />
           <USelect
             v-if="studentItems.length > 1"
@@ -240,7 +245,7 @@ function active(to: string) {
           <li v-for="item in tabs" :key="item.key" class="min-w-0">
             <NuxtLink
               :to="item.to"
-              class="pressable flex flex-col items-center gap-1 rounded-xl py-2 text-[11px]"
+              class="pressable flex flex-col items-center gap-1 rounded-xl py-2 text-xs"
               :class="active(item.to) ? 'bg-[rgb(28_28_28_/_0.06)] text-ink' : 'ink-soft'"
             >
               <UIcon :name="item.icon" class="size-5 shrink-0" />
@@ -250,7 +255,7 @@ function active(to: string) {
           <li class="min-w-0">
             <button
               type="button"
-              class="pressable flex w-full flex-col items-center gap-1 rounded-xl py-2 text-[11px]"
+              class="pressable flex w-full flex-col items-center gap-1 rounded-xl py-2 text-xs"
               :class="more || extra.some(item => active(item.to)) ? 'bg-[rgb(28_28_28_/_0.06)] text-ink' : 'ink-soft'"
               @click="more = true"
             >
@@ -283,6 +288,15 @@ function active(to: string) {
           >
             <UIcon name="i-lucide-refresh-cw" class="size-5 text-ink" :class="(refreshPending || pending) ? 'animate-spin' : ''" />
             <span>{{ t('module.refresh') }}</span>
+          </button>
+          <button
+            type="button"
+            class="nav-item pressable flex w-full items-center gap-3 rounded-xl px-2 py-3 text-left"
+            :aria-pressed="isLarge"
+            @click="toggleTextScale"
+          >
+            <UIcon name="i-lucide-a-large-small" class="size-5 text-ink" />
+            <span>{{ isLarge ? t('textScale.largeOn') : t('textScale.largeOff') }}</span>
           </button>
           <button type="button" class="pressable w-full px-2 py-3 text-left text-sm ink-soft hover:text-ink" @click="logout">{{ t('shell.logout') }}</button>
         </div>

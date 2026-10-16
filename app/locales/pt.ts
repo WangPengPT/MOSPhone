@@ -49,6 +49,13 @@ export const pt = {
   locale: {
     label: 'Idioma'
   },
+  textScale: {
+    label: 'Tamanho do texto',
+    toLarge: 'Mudar para texto grande',
+    toNormal: 'Mudar para texto normal',
+    largeOn: 'Texto grande: ligado',
+    largeOff: 'Texto grande: desligado'
+  },
   auth: {
     eyebrow: 'Ligado ao SIGA',
     headline: 'A escola do seu educando, num ecrã que cabe na mão.',
@@ -292,6 +299,8 @@ export const pt = {
     fileType: 'Use PDF, PNG ou JPG.',
     terms: 'Confirmo os dados e aceito as condições da devolução.',
     submit: 'Submeter pedido de devolução',
+    close: 'Fechar',
+    helpClose: 'Entendi',
     sent: 'Pedido de devolução enviado.',
     rejected: 'A escola não aceitou este pedido de devolução.',
     notAllowed: 'Não é possível pedir devolução deste carregamento de momento.',

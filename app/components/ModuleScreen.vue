@@ -594,6 +594,7 @@ const walletPanel = computed(() => panel.value?.kind === 'wallet' ? panel.value 
             :student-id="studentId"
             :error="refundError"
             @submit="requestRefund"
+            @close="refundOpen = false"
           />
         </template>
       </UModal>

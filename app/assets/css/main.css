@@ -29,6 +29,57 @@ html {
   background: var(--color-paper);
   overflow-x: clip;
   max-width: 100%;
+  font-size: 100%;
+}
+
+/* Comfortable large-text layout for low vision / nearsighted reading.
+ * Prefer root font-size scaling; avoid forcing heights on buttons/checkboxes
+ * (that stretched Nuxt UI checkbox indicators into tall rectangles). */
+html.siga-text-large {
+  font-size: 117.5%;
+  --portal-tabbar: 5.5rem;
+  --press: 0.99;
+}
+
+html.siga-text-large body {
+  line-height: 1.55;
+}
+
+html.siga-text-large .font-display {
+  letter-spacing: -0.02em;
+}
+
+html.siga-text-large .ink-soft,
+html.siga-text-large .text-muted {
+  color: rgb(28 28 28 / 0.72);
+}
+
+html.siga-text-large input:not([type='checkbox']):not([type='radio']):not([type='file']):not([type='hidden']),
+html.siga-text-large select,
+html.siga-text-large textarea {
+  min-height: 2.75rem;
+}
+
+html.siga-text-large textarea {
+  min-height: 6.5rem;
+}
+
+html.siga-text-large .nav-item {
+  min-height: 2.75rem;
+}
+
+/* Keep checkbox / radio / switch controls square and unstretched. */
+html.siga-text-large [role='checkbox'],
+html.siga-text-large [role='radio'],
+html.siga-text-large [role='switch'],
+html.siga-text-large input[type='checkbox'],
+html.siga-text-large input[type='radio'] {
+  min-height: 0 !important;
+  min-width: 0 !important;
+  height: auto !important;
+  width: auto !important;
+  aspect-ratio: auto;
+  letter-spacing: normal;
 }
 
 :root {

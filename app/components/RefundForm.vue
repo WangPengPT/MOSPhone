@@ -20,6 +20,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   submit: [payload: Record<string, unknown>]
+  close: []
 }>()
 
 const { t } = useAppI18n()
@@ -255,9 +256,20 @@ function send() {
   <div class="space-y-4">
     <p class="text-sm ink-soft">{{ t('refund.hint') }}</p>
 
-    <div v-if="loading" class="flex items-center justify-center gap-2 py-8 text-sm ink-soft">
-      <UIcon name="i-lucide-loader-circle" class="size-4 animate-spin" />
-      <span>{{ t('refund.loading') }}</span>
+    <div v-if="loading" class="space-y-4">
+      <div class="flex items-center justify-center gap-2 py-8 text-sm ink-soft">
+        <UIcon name="i-lucide-loader-circle" class="size-4 animate-spin" />
+        <span>{{ t('refund.loading') }}</span>
+      </div>
+      <UButton
+        type="button"
+        size="lg"
+        color="neutral"
+        variant="soft"
+        block
+        :label="t('refund.close')"
+        @click="emit('close')"
+      />
     </div>
 
     <template v-else>
@@ -409,70 +421,104 @@ function send() {
         <UCheckbox v-model="acceptedTerms" :label="t('refund.terms')" :disabled="saving" />
 
         <p v-if="formError" class="text-sm text-red-600">{{ formError }}</p>
-        <UButton class="mt-2" type="submit" size="lg" block :label="t('refund.submit')" :loading="saving" />
+        <div class="mt-2 grid gap-2">
+          <UButton type="submit" size="lg" block :label="t('refund.submit')" :loading="saving" />
+          <UButton
+            type="button"
+            size="lg"
+            color="neutral"
+            variant="soft"
+            block
+            :label="t('refund.close')"
+            :disabled="saving"
+            @click="emit('close')"
+          />
+        </div>
       </form>
 
-      <p v-else-if="formError" class="text-sm text-red-600">{{ formError }}</p>
+      <div v-else class="space-y-3">
+        <p v-if="formError" class="text-sm text-red-600">{{ formError }}</p>
+        <UButton
+          type="button"
+          size="lg"
+          color="neutral"
+          variant="soft"
+          block
+          :label="t('refund.close')"
+          @click="emit('close')"
+        />
+      </div>
     </template>
 
     <UModal v-model:open="helpOpen" :title="helpTitle">
       <template #body>
-        <div v-if="helpKind === 'iban'" class="space-y-3 text-sm leading-relaxed">
-          <p>{{ t('refund.ibanFileHelpWhat') }}</p>
-          <div>
-            <p class="font-medium">{{ t('refund.fileHelpNeed') }}</p>
-            <ul class="mt-1 list-disc space-y-1 pl-5 ink-soft">
-              <li>{{ t('refund.ibanFileHelpNeed1') }}</li>
-              <li>{{ t('refund.ibanFileHelpNeed2') }}</li>
-            </ul>
+        <div class="space-y-4">
+          <div v-if="helpKind === 'iban'" class="space-y-3 text-sm leading-relaxed">
+            <p>{{ t('refund.ibanFileHelpWhat') }}</p>
+            <div>
+              <p class="font-medium">{{ t('refund.fileHelpNeed') }}</p>
+              <ul class="mt-1 list-disc space-y-1 pl-5 ink-soft">
+                <li>{{ t('refund.ibanFileHelpNeed1') }}</li>
+                <li>{{ t('refund.ibanFileHelpNeed2') }}</li>
+              </ul>
+            </div>
+            <div>
+              <p class="font-medium">{{ t('refund.fileHelpWhere') }}</p>
+              <ul class="mt-1 list-disc space-y-1 pl-5 ink-soft">
+                <li>{{ t('refund.ibanFileHelpWhere1') }}</li>
+                <li>{{ t('refund.ibanFileHelpWhere2') }}</li>
+                <li>{{ t('refund.ibanFileHelpWhere3') }}</li>
+              </ul>
+            </div>
+            <p class="text-xs ink-soft">{{ t('refund.fileHelpFormat') }}</p>
           </div>
-          <div>
-            <p class="font-medium">{{ t('refund.fileHelpWhere') }}</p>
-            <ul class="mt-1 list-disc space-y-1 pl-5 ink-soft">
-              <li>{{ t('refund.ibanFileHelpWhere1') }}</li>
-              <li>{{ t('refund.ibanFileHelpWhere2') }}</li>
-              <li>{{ t('refund.ibanFileHelpWhere3') }}</li>
-            </ul>
+          <div v-else-if="helpKind === 'cc'" class="space-y-3 text-sm leading-relaxed">
+            <p>{{ t('refund.ccFileHelpWhat') }}</p>
+            <div>
+              <p class="font-medium">{{ t('refund.fileHelpNeed') }}</p>
+              <ul class="mt-1 list-disc space-y-1 pl-5 ink-soft">
+                <li>{{ t('refund.ccFileHelpNeed1') }}</li>
+                <li>{{ t('refund.ccFileHelpNeed2') }}</li>
+              </ul>
+            </div>
+            <div>
+              <p class="font-medium">{{ t('refund.fileHelpWhere') }}</p>
+              <ul class="mt-1 list-disc space-y-1 pl-5 ink-soft">
+                <li>{{ t('refund.ccFileHelpWhere1') }}</li>
+                <li>{{ t('refund.ccFileHelpWhere2') }}</li>
+                <li>{{ t('refund.ccFileHelpWhere3') }}</li>
+              </ul>
+            </div>
+            <p class="text-xs ink-soft">{{ t('refund.fileHelpFormat') }}</p>
           </div>
-          <p class="text-xs ink-soft">{{ t('refund.fileHelpFormat') }}</p>
-        </div>
-        <div v-else-if="helpKind === 'cc'" class="space-y-3 text-sm leading-relaxed">
-          <p>{{ t('refund.ccFileHelpWhat') }}</p>
-          <div>
-            <p class="font-medium">{{ t('refund.fileHelpNeed') }}</p>
-            <ul class="mt-1 list-disc space-y-1 pl-5 ink-soft">
-              <li>{{ t('refund.ccFileHelpNeed1') }}</li>
-              <li>{{ t('refund.ccFileHelpNeed2') }}</li>
-            </ul>
+          <div v-else-if="helpKind === 'reason'" class="space-y-3 text-sm leading-relaxed">
+            <p>{{ t('refund.reasonHelpWhat') }}</p>
+            <div>
+              <p class="font-medium">{{ t('refund.reasonHelpHow') }}</p>
+              <ul class="mt-1 list-disc space-y-1 pl-5 ink-soft">
+                <li>{{ t('refund.reasonHelpHow1') }}</li>
+                <li>{{ t('refund.reasonHelpHow2') }}</li>
+                <li>{{ t('refund.reasonHelpHow3') }}</li>
+              </ul>
+            </div>
+            <div>
+              <p class="font-medium">{{ t('refund.reasonHelpExamples') }}</p>
+              <ul class="mt-1 list-disc space-y-1 pl-5 ink-soft">
+                <li>{{ t('refund.reasonHelpEx1') }}</li>
+                <li>{{ t('refund.reasonHelpEx2') }}</li>
+                <li>{{ t('refund.reasonHelpEx3') }}</li>
+              </ul>
+            </div>
           </div>
-          <div>
-            <p class="font-medium">{{ t('refund.fileHelpWhere') }}</p>
-            <ul class="mt-1 list-disc space-y-1 pl-5 ink-soft">
-              <li>{{ t('refund.ccFileHelpWhere1') }}</li>
-              <li>{{ t('refund.ccFileHelpWhere2') }}</li>
-              <li>{{ t('refund.ccFileHelpWhere3') }}</li>
-            </ul>
-          </div>
-          <p class="text-xs ink-soft">{{ t('refund.fileHelpFormat') }}</p>
-        </div>
-        <div v-else-if="helpKind === 'reason'" class="space-y-3 text-sm leading-relaxed">
-          <p>{{ t('refund.reasonHelpWhat') }}</p>
-          <div>
-            <p class="font-medium">{{ t('refund.reasonHelpHow') }}</p>
-            <ul class="mt-1 list-disc space-y-1 pl-5 ink-soft">
-              <li>{{ t('refund.reasonHelpHow1') }}</li>
-              <li>{{ t('refund.reasonHelpHow2') }}</li>
-              <li>{{ t('refund.reasonHelpHow3') }}</li>
-            </ul>
-          </div>
-          <div>
-            <p class="font-medium">{{ t('refund.reasonHelpExamples') }}</p>
-            <ul class="mt-1 list-disc space-y-1 pl-5 ink-soft">
-              <li>{{ t('refund.reasonHelpEx1') }}</li>
-              <li>{{ t('refund.reasonHelpEx2') }}</li>
-              <li>{{ t('refund.reasonHelpEx3') }}</li>
-            </ul>
-          </div>
+          <UButton
+            type="button"
+            size="lg"
+            color="neutral"
+            variant="soft"
+            block
+            :label="t('refund.helpClose')"
+            @click="helpOpen = false"
+          />
         </div>
       </template>
     </UModal>

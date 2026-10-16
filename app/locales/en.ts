@@ -47,6 +47,13 @@ export const en = {
   locale: {
     label: 'Language'
   },
+  textScale: {
+    label: 'Text size',
+    toLarge: 'Switch to large text',
+    toNormal: 'Switch to standard text',
+    largeOn: 'Large text: on',
+    largeOff: 'Large text: off'
+  },
   auth: {
     eyebrow: 'Connected to SIGA',
     headline: 'Your child\'s school, on a screen that fits in your hand.',
@@ -290,6 +297,8 @@ export const en = {
     fileType: 'Use PDF, PNG or JPG.',
     terms: 'I confirm the details and accept the refund terms.',
     submit: 'Submit refund request',
+    close: 'Close',
+    helpClose: 'Got it',
     sent: 'Refund request submitted.',
     rejected: 'The school did not accept this refund request.',
     notAllowed: 'A refund cannot be requested for this top-up right now.',
