@@ -14,6 +14,8 @@ const topupError = ref('')
 const topupWaitAmount = ref(0)
 const topupBaselineBalance = ref<number | null>(null)
 const createWalletOpen = ref(false)
+const refundOpen = ref(false)
+const refundError = ref('')
 const noteKey = ref('')
 const noteText = ref('')
 const note = computed(() => noteText.value || (noteKey.value ? t(noteKey.value) : ''))
@@ -418,6 +420,51 @@ async function refreshAfterTopUp() {
   }
 }
 
+async function requestRefund(payload: Record<string, unknown>) {
+  saving.value = true
+  refundError.value = ''
+  noteKey.value = ''
+  noteText.value = ''
+  try {
+    const result = await $fetch<{ ok: boolean, message?: string, needRelogin?: boolean }>('/api/portal/action', {
+      method: 'POST',
+      body: {
+        module: 'cartao',
+        payload: {
+          ...payload,
+          action: 'requestRefund',
+          studentId: studentId.value || undefined
+        }
+      }
+    })
+    if (result.needRelogin) {
+      noteText.value = result.message || t('panel.reloginBody')
+      refundError.value = note.value
+      toast.add({ title: t('panel.reloginTitle'), description: note.value, color: 'error' })
+      return
+    }
+    if (result.message) noteText.value = result.message
+    else noteKey.value = result.ok ? 'refund.sent' : 'refund.rejected'
+    if (result.ok) {
+      toast.add({ title: t('refund.sent'), description: note.value, color: 'success' })
+      refundOpen.value = false
+      await refresh()
+      return
+    }
+    refundError.value = note.value || t('refund.rejected')
+    toast.add({ title: refundError.value, color: 'error' })
+  }
+  catch (reason) {
+    const text = errorText(reason)
+    noteText.value = text
+    refundError.value = text
+    toast.add({ title: text || t('refund.rejected'), color: 'error' })
+  }
+  finally {
+    saving.value = false
+  }
+}
+
 async function createWallet(payload: Record<string, unknown>) {
   saving.value = true
   noteKey.value = ''
@@ -510,6 +557,7 @@ const walletPanel = computed(() => panel.value?.kind === 'wallet' ? panel.value 
         :can-top-up="(module === 'cartao' || module === 'inicio') && data?.canTopUp"
         :loading-sections="loadingSections"
         @topup="topupOpen = true"
+        @refund="refundOpen = true; refundError = ''"
         @create-wallet="createWalletOpen = true"
         @load-section="loadSection"
       />
@@ -534,6 +582,18 @@ const walletPanel = computed(() => panel.value?.kind === 'wallet' ? panel.value 
             :draft="walletPanel?.createDraft || null"
             :echelon-options="walletPanel?.echelonOptions || []"
             @submit="createWallet"
+          />
+        </template>
+      </UModal>
+
+      <UModal v-model:open="refundOpen" :title="t('refund.title')">
+        <template #body>
+          <RefundForm
+            v-if="refundOpen"
+            :saving="saving"
+            :student-id="studentId"
+            :error="refundError"
+            @submit="requestRefund"
           />
         </template>
       </UModal>

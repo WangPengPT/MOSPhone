@@ -266,6 +266,9 @@ export async function postModule(
   if (moduleKey === 'cartao') {
     const payload = body && typeof body === 'object' ? body as { action?: string } : {}
     if (payload.action === 'createWallet') return createDigitalWallet(state, body)
+    if (payload.action === 'listRefundDeposits') return listRefundDeposits(state, body)
+    if (payload.action === 'refundCosts') return refundCosts(state, body)
+    if (payload.action === 'requestRefund') return requestWalletRefund(state, body)
     return topUpWallet(state, body)
   }
 
@@ -1635,6 +1638,240 @@ function mbwayLoadMessage(code: number) {
     case 7: return serverT('api.mbwayBelowMin')
     default: return serverT('module.topUpRejected')
   }
+}
+
+/** Official SIGA refund enums (Payshop wallet). */
+const WalletRefundType = { CloseAccount: 1, Refund: 2 } as const
+const WalletRefundPaymentMode = { BankTransfer: 0, PostalOrder: 1 } as const
+const MIN_REFUND_AMOUNT = 0.1
+const MAX_REFUND_FILE_BYTES = 1048576
+const REFUND_FILE_EXT = /\.(pdf|png|jpe?g)$/i
+
+type RefundDeposit = {
+  idWalletMovement: number
+  idWalletUser: number
+  amount: number
+  amountCanBeRefund: number
+  canBeRefund: boolean
+  date: string | null
+  description: string | null
+  idRefundStatus: number
+}
+
+async function listRefundDeposits(state: PortalState, body: unknown) {
+  const payload = (body && typeof body === 'object' ? body : {}) as { studentId?: string | null }
+  const idUser = payload.studentId ? Number(payload.studentId) || state.user.IdUser || 0 : state.user.IdUser || 0
+  if (!idUser) return { ok: false, message: serverT('api.incomplete'), payload: null }
+
+  // Official UI passes a bare IdUser number to GET_WalletDeposits.
+  const [depositsEnvelope, thresholdEnvelope] = await Promise.all([
+    schoolCall(state.serviceUrl, 'GET_WalletDeposits', idUser, state.authToken),
+    schoolCall(state.serviceUrl, 'GET_WalletRefundENUMType', null, state.authToken).catch(() => null)
+  ])
+  let envelope = depositsEnvelope
+  if (!schoolOk(envelope)) {
+    envelope = await schoolCall(state.serviceUrl, 'GET_WalletDeposits', { IdUser: idUser }, state.authToken)
+  }
+  if (!schoolOk(envelope)) {
+    return {
+      ok: false,
+      message: cleanMessage(envelope.ResponseMessage) || serverT('refund.loadFailed'),
+      payload: null
+    }
+  }
+
+  const deposits = asRefundDeposits(envelope.ResponseObject)
+  // Official: AmountThreshold = ResponseObject - 1; files required when amount >= threshold.
+  const thresholdRaw = thresholdEnvelope && schoolOk(thresholdEnvelope)
+    ? Number(thresholdEnvelope.ResponseObject)
+    : NaN
+  const fileThreshold = Number.isFinite(thresholdRaw) ? thresholdRaw - 1 : null
+  return {
+    ok: true,
+    message: cleanMessage(envelope.ResponseMessage),
+    payload: {
+      deposits,
+      refundableCount: deposits.filter(item => item.canBeRefund && item.amountCanBeRefund > 0).length,
+      fileThreshold
+    }
+  }
+}
+
+async function refundCosts(state: PortalState, body: unknown) {
+  const payload = (body && typeof body === 'object' ? body : {}) as {
+    studentId?: string | null
+    amount?: number
+  }
+  const idUser = payload.studentId ? Number(payload.studentId) || state.user.IdUser || 0 : state.user.IdUser || 0
+  const amount = Number(payload.amount)
+  if (!idUser || !Number.isFinite(amount) || amount < MIN_REFUND_AMOUNT) {
+    return { ok: false, message: serverT('api.incomplete'), payload: null }
+  }
+
+  const envelope = await schoolCall(state.serviceUrl, 'GET_WalletRefundCosts', {
+    IdUser: idUser,
+    CloseAccount: false,
+    Amount: amount
+  }, state.authToken)
+  if (!schoolOk(envelope) || !envelope.ResponseObject || typeof envelope.ResponseObject !== 'object') {
+    return {
+      ok: false,
+      message: cleanMessage(envelope.ResponseMessage) || serverT('refund.costsFailed'),
+      payload: null
+    }
+  }
+  const row = envelope.ResponseObject as Record<string, unknown>
+  return {
+    ok: true,
+    message: cleanMessage(envelope.ResponseMessage),
+    payload: {
+      amountTransfer: Number(row.AmountTransfer ?? row.amountTransfer) || 0,
+      feeTransfer: Number(row.FeeTransfer ?? row.feeTransfer) || 0,
+      amountValePostal: Number(row.AmountValePostal ?? row.amountValePostal) || 0,
+      feeValePostal: Number(row.FeeValePostal ?? row.feeValePostal) || 0
+    }
+  }
+}
+
+async function requestWalletRefund(state: PortalState, body: unknown) {
+  const payload = (body && typeof body === 'object' ? body : {}) as Record<string, unknown>
+  const idUser = payload.studentId ? Number(payload.studentId) || state.user.IdUser || 0 : state.user.IdUser || 0
+  const idWalletMovement = Number(payload.idWalletMovement)
+  const idWalletUser = Number(payload.idWalletUser)
+  const amount = Number(payload.amount)
+  const observations = String(payload.observations || '').trim()
+  const acceptedTerms = payload.acceptedTerms === true
+  const iban = normalizePt50Iban(payload.iban)
+  const iban2 = normalizePt50Iban(payload.iban2)
+  const ibanFile = asPayshopFile(payload.ibanFile)
+  const ccFile = asPayshopFile(payload.ccFile)
+
+  if (!idUser || !idWalletMovement || !Number.isFinite(amount) || amount < MIN_REFUND_AMOUNT) {
+    return { ok: false, message: serverT('api.incomplete'), payload: null }
+  }
+  if (!acceptedTerms) {
+    return { ok: false, message: serverT('refund.needTerms'), payload: null }
+  }
+  if (!observations) {
+    return { ok: false, message: serverT('refund.needReason'), payload: null }
+  }
+  if (!isValidPt50Iban(iban) || iban !== iban2) {
+    return { ok: false, message: serverT('refund.needIban'), payload: null }
+  }
+
+  // Official RequireFiles: close-account OR amount >= (GET_WalletRefundENUMType - 1).
+  const thresholdEnvelope = await schoolCall(state.serviceUrl, 'GET_WalletRefundENUMType', null, state.authToken)
+  const thresholdRaw = schoolOk(thresholdEnvelope) ? Number(thresholdEnvelope.ResponseObject) : NaN
+  const fileThreshold = Number.isFinite(thresholdRaw) ? thresholdRaw - 1 : null
+  const filesRequired = fileThreshold == null || amount >= fileThreshold
+  if (filesRequired && (!ibanFile || !ccFile)) {
+    return { ok: false, message: serverT('refund.needFiles'), payload: null }
+  }
+
+  // Gate used by official UI before opening the refund form.
+  if (idWalletUser) {
+    const gate = await schoolCall(state.serviceUrl, 'GET_WalletRefundOrCloseAccount', {
+      IdUser: idUser,
+      IdWalletUser: idWalletUser,
+      IdRefundType: WalletRefundType.Refund
+    }, state.authToken)
+    if (!schoolOk(gate)) {
+      return {
+        ok: false,
+        message: cleanMessage(gate.ResponseMessage) || serverT('refund.notAllowed'),
+        payload: null
+      }
+    }
+  }
+
+  const envelope = await schoolCall(state.serviceUrl, 'SET_WalletRefundRequest', {
+    IdUser: idUser,
+    IdWalletMovement: idWalletMovement,
+    Amount: amount,
+    PaymentMode: WalletRefundPaymentMode.BankTransfer,
+    IBAN: iban,
+    IBAN2: iban2,
+    Observations: observations,
+    // Official toPayshopFile returns {} when no file was chosen.
+    IBANFile: ibanFile || {},
+    CCFile: ccFile || {}
+  }, state.authToken, 60000)
+
+  return {
+    ok: envelope.ResponseCode === SchoolResult.Success,
+    message: cleanMessage(envelope.ResponseMessage)
+      || (envelope.ResponseCode === SchoolResult.Success ? serverT('refund.sent') : serverT('refund.rejected')),
+    payload: envelope.ResponseObject
+  }
+}
+
+function asRefundDeposits(value: unknown): RefundDeposit[] {
+  const rows = Array.isArray(value)
+    ? value
+    : value && typeof value === 'object' && Array.isArray((value as { Items?: unknown }).Items)
+      ? (value as { Items: unknown[] }).Items
+      : []
+  const out: RefundDeposit[] = []
+  for (const row of rows) {
+    if (!row || typeof row !== 'object') continue
+    const item = row as Record<string, unknown>
+    const idWalletMovement = Number(item.IdWalletMovement ?? item.idWalletMovement)
+    if (!Number.isFinite(idWalletMovement) || idWalletMovement <= 0) continue
+    const amountCanBeRefund = Number(item.AmountCanBeRefund ?? item.amountCanBeRefund) || 0
+    const canBeRefund = Boolean(item.CanBeRefund ?? item.canBeRefund) && amountCanBeRefund > 0
+    out.push({
+      idWalletMovement,
+      idWalletUser: Number(item.IdWalletUser ?? item.idWalletUser) || 0,
+      amount: Number(item.Amount ?? item.amount) || 0,
+      amountCanBeRefund,
+      canBeRefund,
+      date: item.Date != null ? String(item.Date) : item.date != null ? String(item.date) : null,
+      description: item.Description != null ? String(item.Description) : item.description != null ? String(item.description) : null,
+      idRefundStatus: Number(item.IdRefundStatus ?? item.idRefundStatus) || 0
+    })
+  }
+  return out
+}
+
+/** Official bank-transfer form prefixes BBAN digits with PT50. */
+function normalizePt50Iban(value: unknown) {
+  const raw = String(value || '').replace(/\s+/g, '').toUpperCase()
+  if (!raw) return ''
+  if (/^PT\d{23}$/.test(raw)) return raw
+  const digits = raw.replace(/\D/g, '')
+  if (digits.length === 21) return `PT50${digits}`
+  if (digits.length === 23 && digits.startsWith('50')) return `PT${digits}`
+  if (digits.length === 25 && digits.startsWith('50')) return `PT${digits.slice(0, 23)}`
+  return raw.startsWith('PT') ? raw : `PT50${digits}`
+}
+
+function isValidPt50Iban(iban: string) {
+  if (!/^PT50\d{21}$/.test(iban)) return false
+  const rearranged = `${iban.slice(4)}${iban.slice(0, 4)}`
+  let expanded = ''
+  for (const char of rearranged) {
+    const code = char.charCodeAt(0)
+    expanded += code >= 65 ? String(code - 55) : char
+  }
+  let remainder = 0
+  for (const char of expanded) {
+    remainder = (remainder * 10 + Number(char)) % 97
+  }
+  return remainder === 1
+}
+
+function asPayshopFile(value: unknown): { FileName: string, File: string } | null {
+  if (!value || typeof value !== 'object') return null
+  const row = value as Record<string, unknown>
+  const fileName = String(row.fileName || row.FileName || '').trim()
+  let file = String(row.file || row.File || '').trim()
+  if (file.includes(',')) file = file.split(',').pop() || ''
+  if (!fileName || !file) return null
+  if (!REFUND_FILE_EXT.test(fileName)) return null
+  // Rough decoded size check (base64 → bytes).
+  const bytes = Math.floor(file.length * 0.75)
+  if (bytes <= 0 || bytes > MAX_REFUND_FILE_BYTES) return null
+  return { FileName: fileName, File: file }
 }
 
 function emptyModule(message?: string): ModuleResult {

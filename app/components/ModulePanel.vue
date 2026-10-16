@@ -100,6 +100,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   topup: []
+  refund: []
   'create-wallet': []
   'load-section': [section: WalletSection]
 }>()
@@ -208,6 +209,15 @@ function studentMeta(student: Student | null | undefined) {
             class="justify-center"
             :label="t('topup.action')"
             @click="emit('topup')"
+          />
+          <UButton
+            v-if="canTopUp"
+            color="neutral"
+            variant="soft"
+            size="sm"
+            class="justify-center"
+            :label="t('refund.action')"
+            @click="emit('refund')"
           />
           <UButton
             v-else-if="panel.canCreateWallet"
