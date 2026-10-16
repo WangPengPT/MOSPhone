@@ -1361,38 +1361,71 @@ async function topUpWallet(state: PortalState, body: unknown) {
   }
 
   if (method === 'mbway') {
-    const amount = Number(payload.valor)
-    const phone = String(payload.telemovel || '').replace(/\D/g, '')
-    if (!amount || amount <= 0 || phone.length < 9) {
+    const amount = Number.parseFloat(String(payload.valor))
+    const phoneDigits = String(payload.telemovel || '').replace(/\D/g, '')
+    if (!Number.isFinite(amount) || amount <= 0 || phoneDigits.length < 9) {
       return { ok: false, message: serverT('api.incomplete'), payload: null }
     }
     if (context.minimumMBWayLoad != null && amount < context.minimumMBWayLoad) {
-      return { ok: false, message: serverT('api.mbwayBelowMin'), payload: null }
-    }
-
-    // Official webapp: IdWalletUser + IdInstitution + IdEnumChannel + Amount + Phone
-    const envelope = await schoolCall(state.serviceUrl, 'SET_WalletLoadMBWay', {
-      IdWalletUser: context.idWallet,
-      IdInstitution: context.idInstitution,
-      IdEnumChannel: WalletPaymentMethod.MBWay,
-      Amount: amount,
-      Phone: phone
-    }, state.authToken)
-
-    if (envelope.ResponseCode !== SchoolResult.Success) {
       return {
         ok: false,
-        message: cleanMessage(envelope.ResponseMessage) || serverT('api.refused'),
+        message: `${serverT('api.mbwayBelowMin')} (≥ ${context.minimumMBWayLoad}€)`,
+        payload: null
+      }
+    }
+
+    // Official UI (2024+) uses ThinkPay, not SET_WalletLoadMBWay:
+    // POST /apis/payshopctt/Thinkpay/InitiatePayment?Amount&PhoneNumber=351#…&IdUserKey&EnumChargeType=3
+    const localPhone = phoneDigits.startsWith('351') && phoneDigits.length >= 12
+      ? phoneDigits.slice(3)
+      : phoneDigits
+    const idUserKey = await resolveIdUserKey(state, idUser)
+    if (!idUserKey) {
+      return { ok: false, message: serverT('api.incomplete'), payload: null }
+    }
+
+    const query = new URLSearchParams({
+      Amount: String(amount),
+      PhoneNumber: `351#${localPhone}`,
+      IdUserKey: idUserKey,
+      EnumChargeType: String(WalletPaymentMethod.MBWay)
+    })
+    const envelope = await schoolApiPost<SchoolEnvelope>(
+      state.origin,
+      `/apis/payshopctt/Thinkpay/InitiatePayment?${query.toString()}`,
+      state.authToken,
+      {},
+      45000
+    )
+    const responseCode = Number(envelope.ResponseCode)
+    console.info('[topup/mbway/thinkpay]', {
+      amount,
+      phone: `351#${localPhone}`,
+      idUserKey,
+      responseCode,
+      responseMessage: envelope.ResponseMessage,
+      responseObject: envelope.ResponseObject
+    })
+
+    if (responseCode !== SchoolResult.Success) {
+      const school = cleanMessage(envelope.ResponseMessage)
+      // Only fall back when the ThinkPay route itself is missing (older nodes).
+      if (/404|not\s*found|cannot\s*get|não\s*encontr/i.test(school)) {
+        return topUpWalletLegacyMbway(state, context, amount, localPhone)
+      }
+      return {
+        ok: false,
+        message: school && school !== 'Não foi possível concluir o pedido.' && school.toUpperCase() !== 'ERROR'
+          ? school
+          : serverT('api.mbwayProvider'),
         payload: envelope.ResponseObject
       }
     }
 
-    const loadCode = walletLoadCode(envelope.ResponseObject)
     return {
-      ok: loadCode === 0,
-      message: loadCode === 0
-        ? cleanMessage(envelope.ResponseMessage) || serverT('module.topUpSent')
-        : mbwayLoadMessage(loadCode),
+      ok: true,
+      waiting: true,
+      message: cleanMessage(envelope.ResponseMessage) || serverT('module.topUpSent'),
       payload: envelope.ResponseObject
     }
   }
@@ -1419,6 +1452,71 @@ async function topUpWallet(state: PortalState, body: unknown) {
   }
 }
 
+/** Official ThinkPay MB WAY needs the school IdUserKey (parent or child). */
+async function resolveIdUserKey(state: PortalState, idUser: number) {
+  const envelope = await schoolGetUserData(state)
+  if (!schoolOk(envelope) || !envelope.ResponseObject || typeof envelope.ResponseObject !== 'object') {
+    return null
+  }
+  const data = envelope.ResponseObject as Record<string, unknown>
+  const selfKey = data.IdUserKey != null ? String(data.IdUserKey) : ''
+  if (Number(data.IdUser) === idUser && selfKey) return selfKey
+
+  const children = Array.isArray(data.ChildUsers) ? data.ChildUsers : []
+  for (const child of children) {
+    if (!child || typeof child !== 'object') continue
+    const row = child as Record<string, unknown>
+    if (Number(row.IdUser) === idUser && row.IdUserKey != null) return String(row.IdUserKey)
+  }
+  return selfKey || null
+}
+
+/** Older municipalities still expose SET_WalletLoadMBWay (WalletAccount.IdWallet). */
+async function topUpWalletLegacyMbway(
+  state: PortalState,
+  context: {
+    idWallet: number
+    idInstitution: number
+  },
+  amount: number,
+  phone: string
+) {
+  const envelope = await schoolCall(state.serviceUrl, 'SET_WalletLoadMBWay', {
+    IdWalletUser: context.idWallet,
+    IdInstitution: context.idInstitution,
+    IdEnumChannel: WalletPaymentMethod.MBWay,
+    Amount: amount,
+    Phone: phone
+  }, state.authToken, 45000)
+  const responseCode = Number(envelope.ResponseCode)
+  const loadCode = walletLoadCode(envelope.ResponseObject)
+  console.info('[topup/mbway/legacy]', {
+    responseCode,
+    loadCode,
+    responseMessage: envelope.ResponseMessage,
+    responseObject: envelope.ResponseObject
+  })
+  if (responseCode !== SchoolResult.Success) {
+    const school = cleanMessage(envelope.ResponseMessage)
+    return {
+      ok: false,
+      message: school && school !== 'Não foi possível concluir o pedido.'
+        ? school
+        : `${serverT('api.refused')} (rc=${responseCode})`,
+      payload: envelope.ResponseObject
+    }
+  }
+  const rejected = Number.isFinite(loadCode) && loadCode !== 0
+  return {
+    ok: !rejected,
+    waiting: !rejected,
+    message: rejected
+      ? mbwayFailureMessage(loadCode, envelope.ResponseMessage)
+      : cleanMessage(envelope.ResponseMessage) || serverT('module.topUpSent'),
+    payload: envelope.ResponseObject
+  }
+}
+
 async function walletTopUpContext(state: PortalState, idUser: number) {
   const [accountsEnvelope, walletUserEnvelope] = await Promise.all([
     schoolCall(state.serviceUrl, 'GET_WalletAccountCollection', {
@@ -1437,11 +1535,26 @@ async function walletTopUpContext(state: PortalState, idUser: number) {
   const walletUser = walletUserEnvelope.ResponseObject && typeof walletUserEnvelope.ResponseObject === 'object'
     ? walletUserEnvelope.ResponseObject as Record<string, unknown>
     : null
-  const idWallet = Number(account?.IdWallet)
-  const idInstitution = Number(walletUser?.IdWalletInstitution)
-  if (!idWallet || !idInstitution || !walletUser?.Id) return null
 
-  const minMBWay = Number(account?.MinimumMBWayLoad)
+  // Official: IdWalletUser param ← account.IdWallet; IdInstitution ← walletUser.IdWalletInstitution
+  const idWallet = Number(account?.IdWallet ?? account?.idWallet) || 0
+  const idInstitution = Number(
+    walletUser?.IdWalletInstitution
+    ?? walletUser?.idWalletInstitution
+  ) || 0
+  if (!idWallet || !idInstitution) {
+    console.warn('[topup/context] missing ids', {
+      hasAccount: Boolean(account),
+      hasWalletUser: Boolean(walletUser),
+      idWallet,
+      idInstitution,
+      accountKeys: account ? Object.keys(account).slice(0, 20) : [],
+      walletUserKeys: walletUser ? Object.keys(walletUser).slice(0, 20) : []
+    })
+    return null
+  }
+
+  const minMBWay = Number(account?.MinimumMBWayLoad ?? account?.minimumMBWayLoad)
   return {
     idWallet,
     idInstitution,
@@ -1452,6 +1565,15 @@ async function walletTopUpContext(state: PortalState, idUser: number) {
   }
 }
 
+function mbwayFailureMessage(code: number, responseMessage?: string | null) {
+  const mapped = Number.isFinite(code) ? mbwayLoadMessage(code) : serverT('module.topUpRejected')
+  const school = cleanMessage(responseMessage)
+  if (school && school !== mapped && school !== 'Não foi possível concluir o pedido.') {
+    return Number.isFinite(code) ? `${mapped} (${school}) [${code}]` : `${mapped} (${school})`
+  }
+  return Number.isFinite(code) ? `${mapped} [${code}]` : mapped
+}
+
 function firstWalletAccount(payload: unknown): Record<string, unknown> | null {
   if (Array.isArray(payload)) {
     const first = payload.find(item => item && typeof item === 'object' && !Array.isArray(item))
@@ -1459,7 +1581,9 @@ function firstWalletAccount(payload: unknown): Record<string, unknown> | null {
   }
   if (payload && typeof payload === 'object') {
     const record = payload as Record<string, unknown>
-    for (const key of ['AccountCollection', 'Accounts', 'Items', 'List']) {
+    // GET_WalletAccountCollection may return DTO_Wallet_MovementsCollection
+    // { AccountCollection: [...] } or XML-style { AccountCollection: { DTO_Wallet_Account: [...] } }.
+    for (const key of ['AccountCollection', 'Accounts', 'Items', 'List', 'DTO_Wallet_Account']) {
       const nested = firstWalletAccount(record[key])
       if (nested) return nested
     }
@@ -1468,18 +1592,36 @@ function firstWalletAccount(payload: unknown): Record<string, unknown> | null {
   return null
 }
 
-function walletLoadCode(responseObject: unknown) {
-  try {
-    const parsed = typeof responseObject === 'string'
-      ? JSON.parse(responseObject) as { WalletLoadCode?: number }
-      : responseObject && typeof responseObject === 'object'
-        ? responseObject as { WalletLoadCode?: number }
-        : null
-    return Number(parsed?.WalletLoadCode)
-  }
-  catch {
+function walletLoadCode(responseObject: unknown): number {
+  const visit = (value: unknown, depth = 0): number => {
+    if (value == null || depth > 4) return NaN
+    if (typeof value === 'number') return value
+    if (typeof value === 'string') {
+      const trimmed = value.trim()
+      if (/^-?\d+$/.test(trimmed)) return Number(trimmed)
+      try {
+        return visit(JSON.parse(trimmed), depth + 1)
+      }
+      catch {
+        return NaN
+      }
+    }
+    if (typeof value === 'object') {
+      const record = value as Record<string, unknown>
+      for (const key of Object.keys(record)) {
+        if (key.toLowerCase() === 'walletloadcode') {
+          const code = Number(record[key])
+          if (Number.isFinite(code)) return code
+        }
+      }
+      for (const nested of Object.values(record)) {
+        const code = visit(nested, depth + 1)
+        if (Number.isFinite(code)) return code
+      }
+    }
     return NaN
   }
+  return visit(responseObject)
 }
 
 function mbwayLoadMessage(code: number) {

@@ -224,7 +224,18 @@ export const en = {
     amount: 'Amount',
     phone: 'Mobile (MB WAY)',
     email: 'Email for the reference',
-    submit: 'Send request'
+    submit: 'Send request',
+    needAmount: 'Enter a valid amount.',
+    needPhone: 'Enter a valid MB WAY mobile number (at least 9 digits).',
+    needEmail: 'Enter the email for the payment reference.',
+    waitingTitle: 'Confirm MB WAY on your phone',
+    waitingBody: 'The request was sent to MB WAY. Open your banking app and approve the top-up before the balance updates.',
+    waitingHint: 'Waiting for confirmation on your phone…',
+    waitingDone: 'Done / Close',
+    checkBalance: 'Refresh balance',
+    checkBalanceHint: 'Balance not updated yet. If you already approved, wait a few seconds — this screen checks automatically.',
+    confirmedTitle: 'Top-up credited',
+    confirmedBody: 'Your balance has been updated.'
   },
   walletCreate: {
     title: 'Create digital school card',

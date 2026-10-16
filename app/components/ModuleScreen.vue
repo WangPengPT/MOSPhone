@@ -9,10 +9,29 @@ const toast = useToast()
 const { t } = useAppI18n()
 const saving = ref(false)
 const topupOpen = ref(false)
+const topupWaiting = ref(false)
+const topupError = ref('')
+const topupWaitAmount = ref(0)
+const topupBaselineBalance = ref<number | null>(null)
 const createWalletOpen = ref(false)
 const noteKey = ref('')
 const noteText = ref('')
 const note = computed(() => noteText.value || (noteKey.value ? t(noteKey.value) : ''))
+
+let topupPollTimer: ReturnType<typeof setInterval> | null = null
+let topupPollDeadline = 0
+
+watch(topupOpen, (open) => {
+  if (!open) {
+    stopTopUpPoll()
+    topupWaiting.value = false
+    topupError.value = ''
+  }
+})
+
+onBeforeUnmount(() => {
+  stopTopUpPoll()
+})
 const loadingSections = reactive<Partial<Record<WalletSection, boolean>>>({})
 const walletExtra = ref<{
   cards?: any[]
@@ -57,9 +76,9 @@ const asyncKey = computed(() => moduleCacheKey(props.module, studentId.value, {
 const { data, pending, error, refresh } = useAsyncData(
   asyncKey,
   async () => {
-    const key = asyncKey.value
-    const warm = takeWarmPortalModule(key)
-    if (warm) return warm
+    // Handler runs only on network fetches. Drop any warm copy so MB WAY
+    // balance polls cannot reuse a prefetched stale wallet payload.
+    takeWarmPortalModule(asyncKey.value)
     return $fetch<ModulePayload>('/api/portal/module', {
       query: moduleQuery.value
     }).catch(() => ({ ok: false, message: '', payload: null, canTopUp: false, canSaveDays: false, needRelogin: true }))
@@ -68,7 +87,9 @@ const { data, pending, error, refresh } = useAsyncData(
     server: false,
     lazy: true,
     watch: [asyncKey],
-    getCachedData(key, nuxtApp) {
+    getCachedData(key, nuxtApp, ctx) {
+      // Always refetch on refresh(); otherwise top-up wait never sees new balance.
+      if (ctx.cause === 'refresh:manual' || ctx.cause === 'refresh:hook') return undefined
       const cached = nuxtApp.payload.data[key] as ModulePayload | undefined
       if (cached) return cached
       return peekWarmPortalModule(key) || undefined
@@ -246,30 +267,151 @@ async function saveBookings(payload: {
   }
 }
 
+function moneyNumber(value: unknown) {
+  if (value == null || value === '') return null
+  const number = typeof value === 'number' ? value : Number(String(value).replace(/\s/g, '').replace(',', '.'))
+  return Number.isFinite(number) ? number : null
+}
+
+function currentWalletBalance() {
+  const current = panel.value as { kind?: string, available?: unknown, balance?: unknown, focusStudent?: { balance?: unknown } } | null
+  if (!current) return null
+  return moneyNumber(current.available ?? current.balance ?? current.focusStudent?.balance)
+}
+
+function stopTopUpPoll() {
+  if (topupPollTimer) {
+    clearInterval(topupPollTimer)
+    topupPollTimer = null
+  }
+  topupPollDeadline = 0
+}
+
+function balanceLooksCredited(current: number | null) {
+  if (current == null || topupBaselineBalance.value == null) return false
+  const delta = current - topupBaselineBalance.value
+  const expected = topupWaitAmount.value
+  if (expected > 0) return delta + 0.009 >= expected
+  return delta > 0.009
+}
+
+function completeTopUpConfirmed() {
+  stopTopUpPoll()
+  topupOpen.value = false
+  topupWaiting.value = false
+  noteKey.value = 'topup.confirmedBody'
+  noteText.value = ''
+  toast.add({
+    title: t('topup.confirmedTitle'),
+    description: t('topup.confirmedBody'),
+    color: 'success'
+  })
+}
+
+function startTopUpPoll(amount: number) {
+  stopTopUpPoll()
+  topupWaitAmount.value = amount
+  topupBaselineBalance.value = currentWalletBalance()
+  topupPollDeadline = Date.now() + 3 * 60 * 1000
+  topupPollTimer = setInterval(() => {
+    void pollTopUpBalance(false)
+  }, 3500)
+  setTimeout(() => {
+    void pollTopUpBalance(false)
+  }, 2500)
+}
+
+async function pollTopUpBalance(fromUser: boolean) {
+  if (!topupWaiting.value) {
+    stopTopUpPoll()
+    return
+  }
+  if (!fromUser && topupPollDeadline && Date.now() > topupPollDeadline) {
+    stopTopUpPoll()
+    return
+  }
+  try {
+    await refresh()
+    const current = currentWalletBalance()
+    if (topupBaselineBalance.value == null) {
+      topupBaselineBalance.value = current
+      if (fromUser) {
+        toast.add({ title: t('module.refresh'), description: t('topup.checkBalanceHint') })
+      }
+      return
+    }
+    if (balanceLooksCredited(current)) {
+      completeTopUpConfirmed()
+      return
+    }
+    if (fromUser) {
+      toast.add({ title: t('module.refresh'), description: t('topup.checkBalanceHint') })
+    }
+  }
+  catch {
+    if (fromUser) {
+      toast.add({ title: t('module.refresh'), description: t('topup.checkBalanceHint') })
+    }
+  }
+}
+
 async function topUp(payload: { metodo: string, valor: number, email?: string, telemovel?: string }) {
   saving.value = true
+  topupError.value = ''
   noteKey.value = ''
   noteText.value = ''
   try {
-    const result = await $fetch<{ ok: boolean, message?: string, needRelogin?: boolean }>('/api/portal/action', {
+    const result = await $fetch<{ ok: boolean, waiting?: boolean, message?: string, needRelogin?: boolean }>('/api/portal/action', {
       method: 'POST',
       body: { module: 'cartao', payload: { ...payload, studentId: studentId.value || undefined } }
     })
     if (result.needRelogin) {
       noteText.value = result.message || t('panel.reloginBody')
+      topupError.value = note.value
       toast.add({ title: t('panel.reloginTitle'), description: note.value, color: 'error' })
       return
     }
     if (result.message) noteText.value = result.message
     else noteKey.value = result.ok ? 'module.topUpSent' : 'module.topUpRejected'
     if (result.ok) {
-      toast.add({ title: t('module.toastSent'), description: note.value })
-      topupOpen.value = false
-      await refresh()
+      const mbway = payload.metodo === 'mbway' || result.waiting
+      if (mbway) {
+        topupWaiting.value = true
+        startTopUpPoll(Number(payload.valor) || 0)
+        toast.add({ title: t('topup.waitingTitle'), description: t('topup.waitingBody') })
+      }
+      else {
+        toast.add({ title: t('module.toastSent'), description: note.value })
+        topupOpen.value = false
+        await refresh()
+      }
+      return
     }
+    topupError.value = note.value || t('module.topUpRejected')
+    toast.add({ title: topupError.value, color: 'error' })
   }
   catch (reason) {
-    noteText.value = errorText(reason)
+    const text = errorText(reason)
+    noteText.value = text
+    topupError.value = text
+    toast.add({ title: text || t('module.topUpRejected'), color: 'error' })
+  }
+  finally {
+    saving.value = false
+  }
+}
+
+async function finishTopUpWait() {
+  stopTopUpPoll()
+  topupOpen.value = false
+  topupWaiting.value = false
+  await refresh()
+}
+
+async function refreshAfterTopUp() {
+  saving.value = true
+  try {
+    await pollTopUpBalance(true)
   }
   finally {
     saving.value = false
@@ -372,9 +514,16 @@ const walletPanel = computed(() => panel.value?.kind === 'wallet' ? panel.value 
         @load-section="loadSection"
       />
 
-      <UModal v-model:open="topupOpen" :title="t('topup.title')">
+      <UModal v-model:open="topupOpen" :title="topupWaiting ? t('topup.waitingTitle') : t('topup.title')">
         <template #body>
-          <TopUpForm :saving="saving" @submit="topUp" />
+          <TopUpForm
+            :saving="saving"
+            :waiting="topupWaiting"
+            :error="topupError"
+            @submit="topUp"
+            @done="finishTopUpWait"
+            @refresh="refreshAfterTopUp"
+          />
         </template>
       </UModal>
 

@@ -103,7 +103,8 @@ export async function schoolCall<T = unknown>(
 }
 
 export function schoolOk(envelope: SchoolEnvelope) {
-  return envelope.ResponseCode === SchoolResult.Success || envelope.ResponseCode === SchoolResult.NoData
+  const code = Number(envelope.ResponseCode)
+  return code === SchoolResult.Success || code === SchoolResult.NoData
 }
 
 export async function openSchoolSession(input: {
@@ -196,7 +197,13 @@ export async function schoolApiGet<T = unknown>(origin: string, path: string, au
   }
 }
 
-export async function schoolApiPost<T = unknown>(origin: string, path: string, authToken: string, body: unknown) {
+export async function schoolApiPost<T = unknown>(
+  origin: string,
+  path: string,
+  authToken: string,
+  body: unknown,
+  timeoutMs = 20000
+) {
   const url = new URL(path.startsWith('http') ? path : `${origin.replace(/\/$/, '')}${path.startsWith('/') ? path : `/${path}`}`)
   assertSchoolHost(url.hostname)
   const response = await fetch(url, {
@@ -208,7 +215,7 @@ export async function schoolApiPost<T = unknown>(origin: string, path: string, a
       'X-Requested-With': 'XMLHttpRequest'
     },
     body: JSON.stringify(body ?? {}),
-    signal: AbortSignal.timeout(20000)
+    signal: AbortSignal.timeout(timeoutMs)
   })
   const text = await response.text()
   try {

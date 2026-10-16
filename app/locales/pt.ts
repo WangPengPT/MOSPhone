@@ -226,7 +226,18 @@ export const pt = {
     amount: 'Montante',
     phone: 'Telemóvel (MB WAY)',
     email: 'Email para a referência',
-    submit: 'Enviar pedido'
+    submit: 'Enviar pedido',
+    needAmount: 'Indique um montante válido.',
+    needPhone: 'Indique um telemóvel MB WAY válido (pelo menos 9 dígitos).',
+    needEmail: 'Indique o email para a referência.',
+    waitingTitle: 'Confirme o MB WAY no telemóvel',
+    waitingBody: 'O pedido foi enviado ao MB WAY. Abra a app do banco e autorize o carregamento para o saldo atualizar.',
+    waitingHint: 'À espera da confirmação no telemóvel…',
+    waitingDone: 'Já confirmei / Fechar',
+    checkBalance: 'Atualizar saldo',
+    checkBalanceHint: 'O saldo ainda não mudou. Se já autorizou, aguarde alguns segundos — este ecrã verifica automaticamente.',
+    confirmedTitle: 'Carregamento creditado',
+    confirmedBody: 'O saldo foi atualizado.'
   },
   walletCreate: {
     title: 'Criar cartão escolar digital',

@@ -221,12 +221,23 @@ export const zh = {
   topup: {
     title: '校园卡充值',
     action: '充值',
-    hint: 'MB WAY 会在手机上弹确认。Multibanco / Payshop 把付款参考号发到邮箱（这里不用填金额）。',
+    hint: 'MB WAY 发送后请在银行 App 确认。Multibanco / Payshop 把付款参考号发到邮箱（这里不用填金额）。',
     method: '方式',
     amount: '金额',
     phone: '手机号（MB WAY）',
     email: '接收参考号的邮箱',
-    submit: '发送请求'
+    submit: '发送请求',
+    needAmount: '请填写有效金额。',
+    needPhone: '请填写有效的 MB WAY 手机号（至少 9 位）。',
+    needEmail: '请填写接收参考号的邮箱。',
+    waitingTitle: '请在手机上确认 MB WAY',
+    waitingBody: '请求已发给 MB WAY。打开银行 App，批准这笔充值后余额才会到账。',
+    waitingHint: '等待你在手机上确认…',
+    waitingDone: '已确认 / 关闭',
+    checkBalance: '刷新余额',
+    checkBalanceHint: '余额尚未变化。若已在手机上批准，请稍等几秒，页面会自动检测。',
+    confirmedTitle: '充值已到账',
+    confirmedBody: '余额已更新。'
   },
   walletCreate: {
     title: '创建数字校园卡',

@@ -1,18 +1,43 @@
-node_modules
-.nuxt
-.output
-.data
-dist
+# Dependencies & build
+node_modules/
+.nuxt/
+.output/
+.data/
+dist/
+.cache/
+.turbo/
+coverage/
+*.tsbuildinfo
+
+# Env & secrets
 .env
+.env.*
+!.env.example
+!.dev.vars.example
+
+# Logs & OS
 *.log
+npm-debug.log*
 .DS_Store
 Thumbs.db
+Desktop.ini
 
-# Android shell / APK (local only — do not push to GitHub)
+# Local / scratch (downloads, reverse-engineering dumps, etc.)
+.tmp/
+.tmp-*/
+tmp/
+*.tmp
+*.har
+
+# Android shell / APK (local only — do not push)
 mobile/
 
-# wrangler files
-.wrangler
+# Wrangler
+.wrangler/
 .dev.vars*
 !.dev.vars.example
-!.env.example
+
+# IDE (keep shared workspace tips if committed intentionally)
+.idea/
+*.swp
+*~
