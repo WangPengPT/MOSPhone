@@ -55,7 +55,8 @@ export const pt = {
     lead: 'Os mesmos dados e os mesmos pedidos do portal oficial. A interface é outra: clara, grande e feita para o telemóvel.',
     point1: 'Marcações de refeições e prolongamento',
     point2: 'Cartão escolar, saldo e carregamentos',
-    point3: 'Ementas, pagamentos e portaria'
+    point3: 'Ementas, pagamentos e portaria',
+    captchaFailed: 'A verificação não carregou. Atualize a página ou use o SIGA oficial.'
   },
   login: {
     title: 'Entrar · Siga',
@@ -75,6 +76,7 @@ export const pt = {
     recover: 'Recuperar acesso',
     haveCode: 'Tenho um código',
     robot: 'Confirme que não é um robot.',
+    captchaRequired: 'A escola pede a verificação abaixo antes de entrar.',
     switchOfficial: 'Entrar no SIGA oficial',
     switchOfficialHint: 'Se for preciso verificação de robot, abra o site oficial na app. Tentamos preencher o utilizador e a palavra-passe atuais; complete o captcha e entre. Use “Voltar a esta app” no topo.',
     switchOfficialCaptcha: 'É preciso verificação — abrir SIGA oficial',

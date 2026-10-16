@@ -356,8 +356,14 @@ function scorePassword(value: string) {
         </UFormField>
         <UCheckbox v-model="remember" :label="t('login.remember')" :description="t('login.rememberHint')" :disabled="busy" />
         <ClientOnly>
-          <RecaptchaBox v-if="needCaptcha" :key="`${locale}-${captchaKey}`" @resolved="captcha = $event" />
+          <RecaptchaBox
+            v-if="needCaptcha"
+            :key="`${locale}-${captchaKey}`"
+            @resolved="captcha = $event"
+            @failed="captcha = ''"
+          />
         </ClientOnly>
+        <p v-if="needCaptcha" class="text-xs text-amber-800">{{ t('login.captchaRequired') }}</p>
         <UButton
           type="submit"
           block

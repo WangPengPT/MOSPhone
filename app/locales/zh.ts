@@ -55,7 +55,8 @@ export const zh = {
     lead: '数据和操作与官方门户相同。界面是重新做的：清楚、字大，并且为手机设计。',
     point1: '订餐与课后延长',
     point2: '校园卡、余额与充值',
-    point3: '菜单、付款与门禁'
+    point3: '菜单、付款与门禁',
+    captchaFailed: '人机验证加载失败。请刷新页面，或改用官方 SIGA 登录。'
   },
   login: {
     title: '登录 · Siga',
@@ -75,6 +76,7 @@ export const zh = {
     recover: '找回访问',
     haveCode: '我有验证码',
     robot: '请确认你不是机器人。',
+    captchaRequired: '学校要求完成下方人机验证后再登录。',
     switchOfficial: '改用官方 SIGA 登录',
     switchOfficialHint: '若出现人机验证，可在 App 内打开官方网站。会尽量自动填入当前账号密码，完成验证码后登录。顶部有「返回本 App」。',
     switchOfficialCaptcha: '需要人机验证 — 打开官方 SIGA',

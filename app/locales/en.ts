@@ -53,7 +53,8 @@ export const en = {
     lead: 'The same data and the same requests as the official portal. A clearer interface, built for a phone.',
     point1: 'Meal and after-school bookings',
     point2: 'School card, balance and top-ups',
-    point3: 'Menus, payments and the gate'
+    point3: 'Menus, payments and the gate',
+    captchaFailed: 'The robot check failed to load. Refresh the page, or use official SIGA login.'
   },
   login: {
     title: 'Sign in · Siga',
@@ -73,6 +74,7 @@ export const en = {
     recover: 'Reset access',
     haveCode: 'I have a code',
     robot: 'Confirm you are not a robot.',
+    captchaRequired: 'The school asks you to complete the robot check below before signing in.',
     switchOfficial: 'Use official SIGA login',
     switchOfficialHint: 'If a robot check is required, open the official site in the app. We try to fill your current username and password; complete captcha, then sign in. Use “Back to this app” at the top.',
     switchOfficialCaptcha: 'Robot check is required — open official SIGA',
