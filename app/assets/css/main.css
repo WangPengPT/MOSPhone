@@ -136,7 +136,7 @@ html.siga-app {
   left: -12%;
   width: min(72vw, 36rem);
   height: min(72vw, 36rem);
-  background: radial-gradient(circle, rgb(165 180 252 / 0.35), transparent 70%);
+  background: radial-gradient(circle, rgb(186 170 140 / 0.42), transparent 70%);
 }
 
 .atmosphere::after {
@@ -144,8 +144,54 @@ html.siga-app {
   right: -14%;
   width: min(68vw, 32rem);
   height: min(68vw, 32rem);
-  background: radial-gradient(circle, rgb(251 146 60 / 0.28), transparent 72%);
+  background: radial-gradient(circle, rgb(214 168 120 / 0.32), transparent 72%);
   animation-delay: -9s;
+}
+
+.auth-shell::before {
+  top: -22%;
+  left: -18%;
+  opacity: 0.7;
+}
+
+.auth-shell::after {
+  top: 18%;
+  right: -20%;
+  bottom: auto;
+  opacity: 0.55;
+}
+
+.auth-panel {
+  background: rgb(252 251 248 / 0.88);
+  border: 1px solid rgb(28 28 28 / 0.06);
+  box-shadow:
+    0 1px 0 rgb(255 255 255 / 0.65) inset,
+    0 18px 40px rgb(28 28 28 / 0.05);
+  backdrop-filter: blur(10px);
+}
+
+/* Login stage: short screens keep a top lead-in; tall screens center the form. */
+.auth-stage {
+  flex: 1 1 auto;
+  align-content: start;
+  padding-top: 2rem;
+  padding-bottom: 1.5rem;
+}
+
+@media (min-height: 740px) {
+  .auth-stage {
+    align-content: safe center;
+    padding-top: 1.25rem;
+    padding-bottom: 1.25rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .auth-stage {
+    align-content: center;
+    padding-top: 2.5rem;
+    padding-bottom: 2.5rem;
+  }
 }
 
 @keyframes drift {

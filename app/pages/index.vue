@@ -294,7 +294,7 @@ function scorePassword(value: string) {
 </script>
 
 <template>
-  <AuthFrame :kicker="t('login.kicker')" :title="t('login.heading')" :subtitle="t('login.subtitle')">
+  <AuthFrame :subtitle="t('login.subtitle')">
     <p v-if="syncNote" class="mb-4 text-sm text-ink">{{ syncNote }}</p>
     <p v-if="bootError" class="mb-4 text-sm whitespace-pre-line text-red-600">{{ bootError }}</p>
     <p v-if="message" class="mb-4 text-sm whitespace-pre-line ink-soft">{{ message }}</p>
@@ -317,7 +317,7 @@ function scorePassword(value: string) {
     <div v-else class="relative">
       <div
         v-if="entering"
-        class="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 rounded-xl bg-[rgb(247_244_237_/_0.92)] px-4 text-center backdrop-blur-sm"
+        class="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 rounded-2xl bg-[rgb(252_251_248_/_0.94)] px-4 text-center"
       >
         <UIcon name="i-lucide-loader-circle" class="size-7 animate-spin text-ink" />
         <p class="font-display text-xl tracking-[-0.02em]">{{ t('login.entering') }}</p>
@@ -328,7 +328,7 @@ function scorePassword(value: string) {
         :key="locale"
         :schema="schema"
         :state="state"
-        class="space-y-5"
+        class="space-y-4"
         :class="entering ? 'pointer-events-none opacity-40' : ''"
         @submit="onSubmit"
       >
@@ -354,7 +354,11 @@ function scorePassword(value: string) {
             :disabled="busy"
           />
         </UFormField>
-        <UCheckbox v-model="remember" :label="t('login.remember')" :description="t('login.rememberHint')" :disabled="busy" />
+        <UCheckbox
+          v-model="remember"
+          :label="t('login.remember')"
+          :disabled="busy"
+        />
         <ClientOnly>
           <RecaptchaBox
             v-if="needCaptcha"
@@ -373,24 +377,22 @@ function scorePassword(value: string) {
           :disabled="busy"
         />
 
-        <div class="space-y-2 rounded-xl border border-[var(--color-line)] bg-[rgb(28_28_28_/_0.03)] px-3 py-3">
-          <UButton
+        <div>
+          <button
             type="button"
-            block
-            size="md"
-            color="neutral"
-            variant="outline"
+            class="pressable w-full rounded-xl bg-[rgb(28_28_28_/_0.04)] px-3 py-2.5 text-sm font-medium text-ink transition hover:bg-[rgb(28_28_28_/_0.07)] disabled:opacity-40"
             :disabled="busy"
-            :label="needCaptcha ? t('login.switchOfficialCaptcha') : t('login.switchOfficial')"
             @click="openOfficialSiga({ username: state.username, password: state.password })"
-          />
-          <p class="text-xs leading-relaxed ink-soft">{{ t('login.switchOfficialHint') }}</p>
+          >
+            {{ needCaptcha ? t('login.switchOfficialCaptcha') : t('login.switchOfficial') }}
+          </button>
+          <p class="mt-1.5 text-[11px] leading-snug ink-soft">{{ t('login.switchOfficialHint') }}</p>
         </div>
 
-        <div class="flex flex-wrap items-center justify-between gap-x-3 gap-y-2 text-sm">
+        <div class="flex items-center justify-between gap-3 border-t border-[var(--color-line)] pt-3 text-sm">
           <NuxtLink
             to="/recuperar"
-            class="underline decoration-[rgb(28_28_28_/_0.25)] underline-offset-4 transition hover:decoration-ink"
+            class="font-medium text-ink underline decoration-[rgb(28_28_28_/_0.2)] underline-offset-4 transition hover:decoration-ink"
             :class="busy ? 'pointer-events-none opacity-40' : ''"
           >{{ t('login.recover') }}</NuxtLink>
           <NuxtLink
@@ -403,20 +405,27 @@ function scorePassword(value: string) {
     </div>
 
     <template #below>
-      <div class="min-w-0 space-y-4">
-        <div class="flex flex-wrap gap-2 text-sm">
+      <div class="min-w-0 space-y-3 lg:max-w-md lg:ml-auto">
+        <div class="flex flex-wrap gap-1.5">
           <button
             v-for="item in videos"
             :key="item.url"
             type="button"
-            class="chip chip-off px-3 py-1.5"
+            class="chip chip-off px-2.5 py-1 text-xs"
             @click="video = item"
           >
             {{ t(`videos.${item.key}`) }}
           </button>
         </div>
-        <div class="flex flex-wrap gap-x-4 gap-y-2 text-sm ink-soft">
-          <a v-for="link in usefulLinks.slice(0, 3)" :key="link.href" :href="link.href" target="_blank" rel="noreferrer" class="hover:text-ink">{{ t(`links.${link.key}`) }}</a>
+        <div class="flex flex-wrap gap-x-4 gap-y-1.5 text-xs ink-soft">
+          <a
+            v-for="link in usefulLinks.slice(0, 3)"
+            :key="link.href"
+            :href="link.href"
+            target="_blank"
+            rel="noreferrer"
+            class="transition hover:text-ink"
+          >{{ t(`links.${link.key}`) }}</a>
         </div>
       </div>
     </template>
